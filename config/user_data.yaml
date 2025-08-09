@@ -1,0 +1,17 @@
+# 用户数据和记忆设置
+
+# 上次使用的设置
+last_used:
+  server: ""  # 上次选择的服务器
+  local_port: ""  # 上次使用的本地端口
+  
+# 用户偏好设置
+preferences:
+  auto_detect_port: true  # 自动检测端口
+  remember_server: true   # 记住上次选择的服务器
+  show_help_tips: true    # 显示帮助提示
+  
+# Ping 数据缓存
+ping_cache:
+  # 此处将存储ping结果，格式：
+  # server_name: ping_time_ms

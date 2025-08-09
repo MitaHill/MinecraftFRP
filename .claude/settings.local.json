@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir:*)",
+      "Bash(mv:*)",
+      "Bash(python:*)",
+      "Bash(timeout:*)",
+      "Bash(if [ -f \"frpc.exe\" ])",
+      "Bash(then mv frpc.exe src/frp-client/)",
+      "Bash(fi)",
+      "Bash(if [ -f \"frpc.ini\" ])",
+      "Bash(then mv frpc.ini src/frp-client/)",
+      "Bash(if [ -f \"frp-server-list.json\" ])",
+      "Bash(then mv frp-server-list.json config/)",
+      "Bash(rm:*)"
+    ],
+    "deny": []
+  }
+}

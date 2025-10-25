@@ -12,7 +12,12 @@
       "Bash(then mv frpc.ini src/frp-client/)",
       "Bash(if [ -f \"frp-server-list.json\" ])",
       "Bash(then mv frp-server-list.json config/)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(pip install:*)",
+      "Bash(pyinstaller:*)",
+      "Bash(then mv frpc.ini config/)",
+      "Bash(if [ -f \"ads.json\" ])",
+      "Bash(then mv ads.json config/)"
     ],
     "deny": []
   }

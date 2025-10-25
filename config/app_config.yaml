@@ -1,52 +1,27 @@
-# Minecraft FRP 应用配置文件
-
-# 应用设置
 app:
-  theme: "auto"  # light, dark, auto
-  window:
-    width: 400
-    height: 550
-    x: 100
-    y: 100
-
-# 网络配置
+  name: Minecraft FRP Tool
+  theme: auto
+  version: 2.0.0
+decrypt_key: clashman
+frp:
+  config_filename: config/frpc.ini
+  ping_data_filename: config/ping_data.yaml
+  thread_timeout: 3000
 network:
-  multicast:
-    group: "224.0.2.60"
-    port: 4445
-    buffer_size: 1024
-    timeout: 0.5
-  
+  download_timeout: 5
+  ping_timeout: 1000
   reserved_ports:
-    - 80
-    - 443
-    - 3306
-    - 8080
-    - 25565
-  
-  port_range:
-    min: 10000
-    max: 65534
-
-# 线程配置
-threads:
-  timeout: 3000  # 毫秒
-  lan_poll_interval: 0.1  # 秒
-
-# 文件路径配置
-files:
-  frpc_exe: "src/frp-client/frpc.exe"
-  frpc_config: "src/frp-client/frpc.ini"
-  ping_data: "config/ping_data.json"
-  ads_file: "config/ads.json"
-  server_list: "config/frp-server-list.json"
-
-# 服务器配置
-servers:
-  url: "https://clash.ink/file/frp-server-list.json"
-  decrypt_key: "clashman"
-  
-# 广告配置
-ads:
-  url: "https://clash.ink/file/minecraft-frp/ads.json"
-  update_interval: 3000  # 毫秒
+  - 80
+  - 443
+  - 3306
+  - 8080
+  - 25565
+settings:
+  auto_mapping: true
+  dark_mode_override: true
+  force_dark_mode: false
+ui:
+  ad_update_interval: 3000
+  ping_update_interval: 3000
+  window_height: 550
+  window_width: 400

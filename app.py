@@ -4,7 +4,7 @@ import argparse
 from PySide6.QtWidgets import QApplication
 
 from src.core.server_manager import ServerManager
-from src.gui.main_window import PortMappingApp
+from src.gui.MainWindow import PortMappingApp
 
 def sigint_handler(sig_num, frame):
     """处理中断信号"""

@@ -175,4 +175,5 @@ MinecraftFRP/
 | 2025-11-28 | `refactor` | PyInstaller打包优化 (内置 frpc.exe 和 logo.ico) | `d2b66b6` (refactor/init-structure) |
 | 2025-11-28 | `refactor` | 封装 tracert_gui.exe 并实现基于 Git Hash 的多版本打包 | `2d5bc5f` (refactor/init-structure) |
 | 2025-11-28 | `docs` | 更新项目企划，增加安全、稳定性及打包发布规范 | `c7afce0` (refactor/init-structure) |
-| 2025-11-28 | `feat` | 默认开启自动映射功能 | `45c1966` (refactor/init-structure) |
+| 2025-11-28 | `feat` | 默认开启自动映射功能 | `2f7043e` (refactor/init-structure) |
+| 2025-11-28 | `refactor` | GUI模块重构：拆分 Tab 组件，重命名文件符合 PascalCase 规范 | `b8d2118` (refactor/init-structure) |

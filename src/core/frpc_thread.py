@@ -2,6 +2,7 @@ import subprocess
 import os
 import time
 from PySide6.QtCore import QThread, Signal, QMutex, QMutexLocker
+from src.utils.path_utils import get_resource_path
 
 class FrpcThread(QThread):
     out = Signal(str)
@@ -20,14 +21,16 @@ class FrpcThread(QThread):
     def run(self):
         si, fb = subprocess.STARTUPINFO(), subprocess.CREATE_NO_WINDOW
         si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        
+        frpc_exe = get_resource_path("frpc.exe")
 
         try:
-            if not os.path.exists("frpc.exe"):
-                self.error.emit("frpc.exe 未找到，请确保文件存在")
+            if not os.path.exists(frpc_exe):
+                self.error.emit(f"frpc.exe 未找到: {frpc_exe}")
                 return
 
             self.p = subprocess.Popen(
-                ["frpc.exe", "-c", self.ini_path],
+                [frpc_exe, "-c", self.ini_path],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,

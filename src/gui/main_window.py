@@ -22,6 +22,7 @@ from src.utils.ad_manager import AdManager
 from src.utils.port_generator import gen_port
 from src.network.ping_utils import load_ping_data, save_ping_data
 from src.core.yaml_config import YamlConfigManager, DEFAULT_APP_CONFIG
+from src.utils.path_utils import get_resource_path
 
 # 线程超时时间（毫秒）
 THREAD_TIMEOUT = 3000
@@ -60,13 +61,14 @@ class PortMappingApp(QWidget):
             self.ad_timer.start(3000)
             self.initial_port_query()
             self.startLANPoller()
-
-        if not os.path.exists("frpc.exe"):
+        
+        frpc_path = get_resource_path("frpc.exe")
+        if not os.path.exists(frpc_path):
             if self.args and (self.args.local_port or self.args.auto_find or self.args.server):
-                print("错误: frpc.exe 未找到")
+                print(f"错误: frpc.exe 未找到: {frpc_path}")
                 sys.exit(1)
             else:
-                QMessageBox.critical(self, "错误", "frpc.exe 未找到，程序即将退出。")
+                QMessageBox.critical(self, "错误", f"frpc.exe 未找到，程序即将退出。\n路径: {frpc_path}")
                 sys.exit(1)
 
     def start_web_browser(self):
@@ -83,12 +85,12 @@ class PortMappingApp(QWidget):
 
         # 自动加载程序图标
         try:
-            icon_path = Path("logo.ico")
+            icon_path = Path(get_resource_path("logo.ico"))
             if icon_path.exists():
                 self.setWindowIcon(QIcon(str(icon_path)))
                 print(f"已加载程序图标: {icon_path}")
             else:
-                print("未找到 logo.ico 文件")
+                print(f"未找到 logo.ico 文件: {icon_path}")
         except Exception as e:
             print(f"设置图标出错: {e}", file=sys.stderr)
 

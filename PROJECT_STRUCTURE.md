@@ -131,3 +131,12 @@ MinecraftFRP/
 
 ### 8.3 异常捕获
 *   所有的 `try-except` 块中，`except` 分支必须记录详细的错误信息。
+
+## 9. 项目变更日志 (Logs)
+
+**重要规则**: 任何对项目架构、功能逻辑或规范的重大修改，都**必须**在此文档中进行记录。记录应参考 Git Commit 记录，确保可追溯性。
+
+| 日期 (Date) | 类型 (Type) | 描述 (Description) | Git Hash (Short) / Branch |
+| :--- | :--- | :--- | :--- |
+| 2025-11-28 | `refactor` | 初始化模块化项目结构，分离核心逻辑与界面 | `87d948f` (refactor/init-structure) |
+| 2025-11-28 | `docs` | 制定并写入项目企划与架构文档，添加 Logs 规则 | Pending... |

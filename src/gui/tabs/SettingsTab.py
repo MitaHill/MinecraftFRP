@@ -1,6 +1,6 @@
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QPushButton, 
                               QLabel, QCheckBox, QMessageBox)
-from src.gui.ServerManagementDialog import ServerManagementDialog
+from src.gui.dialogs.ServerManagementDialog import ServerManagementDialog
 
 class SettingsTab(QWidget):
     def __init__(self, parent_window):
@@ -15,7 +15,6 @@ class SettingsTab(QWidget):
 
         # Auto Mapping
         self.auto_mapping_checkbox = QCheckBox("自动映射")
-        # Set checked state based on parent config
         self.auto_mapping_checkbox.setChecked(self.parent_window.auto_mapping_enabled)
         self.auto_mapping_checkbox.stateChanged.connect(self.parent_window.on_auto_mapping_changed)
         layout.addWidget(self.auto_mapping_checkbox)
@@ -27,7 +26,6 @@ class SettingsTab(QWidget):
 
         # Dark Mode
         self.dark_mode_checkbox = QCheckBox("熄灭灯泡（夜间模式）")
-        # Set checked state
         is_checked = self.parent_window.dark_mode_override and self.parent_window.force_dark_mode
         self.dark_mode_checkbox.setChecked(is_checked)
         self.dark_mode_checkbox.stateChanged.connect(self.parent_window.on_dark_mode_changed)
@@ -40,7 +38,6 @@ class SettingsTab(QWidget):
 
         # Server Management
         server_mgmt_button = QPushButton("服务器管理配置")
-        server_mgmt_button.setStyleSheet("QPushButton{background:#FF9800;color:#fff;padding:8px 16px;border:none;border-radius:4px;}")
         server_mgmt_button.clicked.connect(self.open_server_management)
         layout.addWidget(server_mgmt_button)
         
@@ -54,7 +51,6 @@ class SettingsTab(QWidget):
     def open_server_management(self):
         """打开服务器管理配置对话框"""
         try:
-            # Pass parent_window as parent to dialog
             dialog = ServerManagementDialog(self.parent_window)
             dialog.exec()
         except Exception as e:

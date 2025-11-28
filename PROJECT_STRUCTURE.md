@@ -174,4 +174,5 @@ MinecraftFRP/
 | 2025-11-28 | `fix` | 修复因移除 DEFAULT_SERVERS 导致的 ImportError | `97777ac` (refactor/init-structure) |
 | 2025-11-28 | `refactor` | PyInstaller打包优化 (内置 frpc.exe 和 logo.ico) | `d2b66b6` (refactor/init-structure) |
 | 2025-11-28 | `refactor` | 封装 tracert_gui.exe 并实现基于 Git Hash 的多版本打包 | `2d5bc5f` (refactor/init-structure) |
-| 2025-11-28 | `docs` | 更新项目企划，增加安全、稳定性及打包发布规范 | `ede8973` (refactor/init-structure) |
+| 2025-11-28 | `docs` | 更新项目企划，增加安全、稳定性及打包发布规范 | `c7afce0` (refactor/init-structure) |
+| 2025-11-28 | `feat` | 默认开启自动映射功能 | `45c1966` (refactor/init-structure) |

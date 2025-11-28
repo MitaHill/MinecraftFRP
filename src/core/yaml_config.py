@@ -71,7 +71,7 @@ DEFAULT_APP_CONFIG = {
         "ping_update_interval": 3000
     },
     "settings": {
-        "auto_mapping": False,  # 自动映射开关
+        "auto_mapping": True,  # 自动映射开关
         "dark_mode_override": False,  # 手动主题模式覆盖
         "force_dark_mode": False  # 强制夜间模式
     }

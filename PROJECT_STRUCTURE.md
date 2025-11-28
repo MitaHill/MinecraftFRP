@@ -56,6 +56,9 @@
 *   [x] 局域网 Minecraft 端口自动探测
 *   [x] 图形化界面 (GUI) 与 昼夜主题切换
 *   [x] 自动映射与地址复制功能
+*   [x] 核心配置加密存储与动态加载 (Anti-Cracking)
+*   [x] 完整的单文件打包 (内置 frpc, tracert, logo)
+*   [x] 基于 Git 版本号的自动化构建流程
 
 ### 待开发/优化计划
 *   [ ] 进一步完善异常处理机制
@@ -132,7 +135,33 @@ MinecraftFRP/
 ### 8.3 异常捕获
 *   所有的 `try-except` 块中，`except` 分支必须记录详细的错误信息。
 
-## 9. 项目变更日志 (Logs)
+## 9. 安全与稳定性规范 (Security & Stability)
+
+### 9.1 配置加密 (Anti-Cracking)
+*   **禁止明文**: 严禁在源代码中以明文形式存储关键配置数据（如默认服务器列表、Token、密钥）。
+*   **加密存储**: 敏感数据应加密存储（如 AES），并在运行时动态解密。
+*   **密钥混淆**: 解密密钥不得以单一字符串字面量形式出现，必须进行动态拼接或混淆。
+
+### 9.2 线程安全 (Thread Safety)
+*   **优雅退出**: 程序退出时，必须确保所有子线程（如 FRP 进程线程、网络轮询线程）已安全终止。
+    *   必须调用 `wait()` 方法等待线程清理完毕，禁止仅使用 `stop()` 或 `terminate()` 后直接退出主进程。
+
+## 10. 打包与发布规范 (Packaging)
+
+### 10.1 PyInstaller 打包标准
+*   **单文件发布**: 默认使用 `--onefile` 模式。
+*   **隐藏控制台**: GUI 程序必须使用 `--windowed` 隐藏 CMD 窗口。
+*   **资源内置**: 所有外部依赖（如 `frpc.exe`, `tracert_gui.exe`, 图标文件）必须通过 `--add-binary` 或 `--add-data` 内置到 EXE 中。
+
+### 10.2 路径解析
+*   **动态路径**: 代码中禁止使用硬编码的相对路径加载资源。
+*   **统一接口**: 必须使用 `src.utils.path_utils.get_resource_path` (或类似函数) 来自动处理开发环境与打包环境 (`sys._MEIPASS`) 的路径差异。
+
+### 10.3 版本归档
+*   **Git Hash**: 打包输出目录必须包含当前的 Git Commit Hash (Short)，以便区分不同版本构建。
+    *   格式: `dist/AppName_<git_hash>`
+
+## 11. 项目变更日志 (Logs)
 
 **重要规则**: 任何对项目架构、功能逻辑或规范的重大修改，都**必须**在此文档中进行记录。记录应参考 Git Commit 记录，确保可追溯性。
 
@@ -145,3 +174,4 @@ MinecraftFRP/
 | 2025-11-28 | `fix` | 修复因移除 DEFAULT_SERVERS 导致的 ImportError | `97777ac` (refactor/init-structure) |
 | 2025-11-28 | `refactor` | PyInstaller打包优化 (内置 frpc.exe 和 logo.ico) | `d2b66b6` (refactor/init-structure) |
 | 2025-11-28 | `refactor` | 封装 tracert_gui.exe 并实现基于 Git Hash 的多版本打包 | `2d5bc5f` (refactor/init-structure) |
+| 2025-11-28 | `docs` | 更新项目企划，增加安全、稳定性及打包发布规范 | `ede8973` (refactor/init-structure) |

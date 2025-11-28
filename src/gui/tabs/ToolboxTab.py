@@ -110,7 +110,7 @@ class ToolboxTab(QWidget):
             .field-name { font-weight: 600; font-size: 14px; width: 40%; }
             .ipv4 { font-weight: bold; font-size: 16px; }
         </style>
-        "
+        """
         for adapter in adapters:
             html += f"<h3>{adapter['name']}</h3>"
             html += "<table>"

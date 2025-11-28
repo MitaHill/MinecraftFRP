@@ -17,7 +17,7 @@ network:
   - 8080
   - 25565
 settings:
-  auto_mapping: true
+  auto_mapping: false
   dark_mode_override: true
   force_dark_mode: false
 ui:

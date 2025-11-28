@@ -1,0 +1,65 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / Packaging
+build/
+dist/
+output/
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Project Specific
+*.exe
+*.db
+*.log
+logs/
+tmp/
+Thumbs.db
+
+# Dynamic Config / Data (Keep templates if any, ignore runtime data)
+config/ads.json
+config/frp-server-list-remote.json
+config/frp-server-list.json
+config/ping_data.yaml
+# We keep app_config.yaml as it likely has defaults, but maybe we should rename it to .example later. 
+# For now, tracking it is safer than losing it if it's the only copy.
+
+# Secret / Private
+secrets.yaml

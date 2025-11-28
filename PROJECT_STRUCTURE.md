@@ -139,4 +139,6 @@ MinecraftFRP/
 | 日期 (Date) | 类型 (Type) | 描述 (Description) | Git Hash (Short) / Branch |
 | :--- | :--- | :--- | :--- |
 | 2025-11-28 | `refactor` | 初始化模块化项目结构，分离核心逻辑与界面 | `87d948f` (refactor/init-structure) |
-| 2025-11-28 | `docs` | 制定并写入项目企划与架构文档，添加 Logs 规则 | Pending... |
+| 2025-11-28 | `docs` | 制定并写入项目企划与架构文档，添加 Logs 规则 | `9351384` (refactor/init-structure) |
+| 2025-11-28 | `fix` | 修复 GUI 关闭时的线程安全隐患 (添加 wait()) | `348cafd` (refactor/init-structure) |
+| 2025-11-28 | `refactor` | 加密内置默认服务器列表，混淆密钥 (Anti-Cracking) | `348cafd` (refactor/init-structure) |

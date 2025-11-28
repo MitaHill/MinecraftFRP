@@ -503,9 +503,11 @@ class PortMappingApp(QWidget):
             if self.th and self.th.isRunning():
                 self.log("正在关闭frpc进程...", "orange")
                 self.th.stop()
+                self.th.wait()
 
             if self.lan_poller and self.lan_poller.isRunning():
                 self.lan_poller.stop()
+                self.lan_poller.wait()
 
         self.config_manager.delete_config()
         QApplication.quit()

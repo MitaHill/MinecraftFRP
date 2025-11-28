@@ -143,4 +143,5 @@ MinecraftFRP/
 | 2025-11-28 | `fix` | 修复 GUI 关闭时的线程安全隐患 (添加 wait()) | `348cafd` (refactor/init-structure) |
 | 2025-11-28 | `refactor` | 加密内置默认服务器列表，混淆密钥 (Anti-Cracking) | `348cafd` (refactor/init-structure) |
 | 2025-11-28 | `fix` | 修复因移除 DEFAULT_SERVERS 导致的 ImportError | `97777ac` (refactor/init-structure) |
-| 2025-11-28 | `refactor` | PyInstaller打包优化 (内置 frpc.exe 和 logo.ico) | `68b8006` (refactor/init-structure) |
+| 2025-11-28 | `refactor` | PyInstaller打包优化 (内置 frpc.exe 和 logo.ico) | `d2b66b6` (refactor/init-structure) |
+| 2025-11-28 | `refactor` | 封装 tracert_gui.exe 并实现基于 Git Hash 的多版本打包 | `2d5bc5f` (refactor/init-structure) |

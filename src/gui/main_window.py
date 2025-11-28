@@ -23,7 +23,6 @@ from src.utils.port_generator import gen_port
 from src.network.ping_utils import load_ping_data, save_ping_data
 from src.core.yaml_config import YamlConfigManager, DEFAULT_APP_CONFIG
 from src.utils.path_utils import get_resource_path
-
 # 线程超时时间（毫秒）
 THREAD_TIMEOUT = 3000
 
@@ -528,9 +527,11 @@ class PortMappingApp(QWidget):
 
     def open_tracert(self):
         try:
-            subprocess.Popen("tracert_gui.exe")
-        except FileNotFoundError:
-            QMessageBox.critical(self, "错误", "tracert_gui.exe 未找到")
+            exe_path = get_resource_path("tracert_gui.exe")
+            if not os.path.exists(exe_path):
+                QMessageBox.critical(self, "错误", f"tracert_gui.exe 未找到\n路径: {exe_path}")
+                return
+            subprocess.Popen(exe_path)
         except Exception as e:
             QMessageBox.critical(self, "错误", f"打开 tracert_gui.exe 失败: {e}")
 

@@ -9,7 +9,6 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QMessageBox, QTabWidget, QA
 from PySide6.QtGui import QTextCursor, QIcon, QCloseEvent
 
 from src.gui.Styles import STYLE
-from src.gui.Dialogs import PingDialog
 from src.gui.tabs.MappingTab import MappingTab
 from src.gui.tabs.ToolboxTab import ToolboxTab
 from src.gui.tabs.SettingsTab import SettingsTab

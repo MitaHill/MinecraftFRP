@@ -177,4 +177,4 @@ MinecraftFRP/
 | 2025-11-28 | `docs` | 更新项目企划，增加安全、稳定性及打包发布规范 | `c7afce0` (refactor/init-structure) |
 | 2025-11-28 | `feat` | 默认开启自动映射功能 | `2f7043e` (refactor/init-structure) |
 | 2025-11-28 | `refactor` | GUI模块重构：拆分 Tab 组件，重命名文件符合 PascalCase 规范 | `d76f885` (refactor/init-structure) |
-| 2025-11-28 | `fix` | 修复 MainWindow.py 语法错误 | `1b9cab6` (refactor/init-structure) |
+| 2025-11-28 | `fix` | 修复 MainWindow.py 语法错误 | `a287bf6` (refactor/init-structure) |

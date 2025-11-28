@@ -343,7 +343,7 @@ class PortMappingApp(QWidget):
 
             self.th = FrpcThread("config/frpc.ini")
             self.th.out.connect(self.mapping_tab.log_text.append)
-            self.th.warn.connect(lambda m: self.log(m, "red"))
+            self.th.warn.connect(lambda m: self.log(m, "red") )
             self.th.success.connect(self.disp_succ)
             self.th.error.connect(lambda m: self.show_error(m))
             self.th.terminated.connect(self.onFrpcTerminated)
@@ -485,7 +485,7 @@ class PortMappingApp(QWidget):
             .field-name { font-weight: 600; font-size: 14px; width: 40%; }
             .ipv4 { font-weight: bold; font-size: 16px; }
         </style>
-        "
+        """
         for adapter in adapters:
             html += f"<h3>{adapter['name']}</h3>"
             html += "<table>"

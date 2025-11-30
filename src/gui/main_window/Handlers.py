@@ -26,8 +26,6 @@ def auto_start_mapping(window):
         QTimer.singleShot(2000, lambda: start_map(window))
     else:
         start_map(window)
-        if hasattr(window, 'th') and window.th:
-            window.th.success.connect(lambda: auto_copy_link(window))
 
 def start_map(window):
     """启动frpc映射的核心逻辑"""
@@ -86,6 +84,10 @@ def on_mapping_success(window):
     window.mapping_tab.link_label.setStyleSheet("color: green; font-weight: bold; font-size: 16px;")
     window.mapping_tab.copy_button.setEnabled(True)
     log_message(window, "映射成功！", "green")
+    
+    # 自动复制到剪贴板
+    QApplication.clipboard().setText(window.link)
+    log_message(window, "映射地址已自动复制到剪贴板", "green")
 
 def on_mapping_error(window, message):
     """映射失败时的UI更新"""
@@ -96,14 +98,8 @@ def on_mapping_error(window, message):
 def copy_link(window):
     """复制映射链接到剪贴板"""
     QApplication.clipboard().setText(window.link)
-    log_message(window, "游戏链接地址已复制到剪贴板", "red")
+    log_message(window, "游戏链接地址已复制到剪贴板", "green")
     QTimer.singleShot(3000, window.update_ad)
-
-def auto_copy_link(window):
-    """自动复制链接（用于自动映射模式）"""
-    if window.auto_mapping_enabled and window.link:
-        QApplication.clipboard().setText(window.link)
-        log_message(window, "自动映射: 映射地址已自动复制到剪贴板", "green")
 
 def log_message(window, message, color=None):
     """向日志文本框输出带颜色的信息"""

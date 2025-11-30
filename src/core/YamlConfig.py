@@ -55,7 +55,8 @@ DEFAULT_APP_CONFIG = {
     "app": {
         "name": "Minecraft FRP Tool",
         "version": "2.0.0",
-        "theme": "auto"  # auto, light, dark
+        "theme": "auto",  # auto, light, dark
+        "logs_size": "1MB" # 日志最大尺寸
     },
     "frp": {
         "config_filename": "frpc.ini",

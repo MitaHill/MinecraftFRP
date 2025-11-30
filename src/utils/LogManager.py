@@ -1,8 +1,15 @@
 import logging
 import sys
 import os
-from logging.handlers import RotatingFileHandler
 from src.utils.PathUtils import get_resource_path
+
+class ClosingFileHandler(logging.FileHandler):
+    """每次写入后关闭文件的 Handler，以支持外部文件操作(如裁剪)"""
+    def emit(self, record):
+        try:
+            super().emit(record)
+        finally:
+            self.close()
 
 class LogManager:
     _instance = None
@@ -41,7 +48,7 @@ class LogManager:
         console_handler.setLevel(logging.INFO)
         logger.addHandler(console_handler)
 
-        # 2. 文件 Handler (Rotating)
+        # 2. 文件 Handler (ClosingFileHandler)
         # 确保 logs 目录存在
         log_dir = "logs"
         if not os.path.exists(log_dir):
@@ -54,12 +61,8 @@ class LogManager:
         log_file_path = os.path.join(log_dir, "app.log")
         
         try:
-            file_handler = RotatingFileHandler(
-                log_file_path, 
-                maxBytes=5*1024*1024, # 5MB
-                backupCount=3,
-                encoding='utf-8'
-            )
+            # 使用自定义的 ClosingFileHandler
+            file_handler = ClosingFileHandler(log_file_path, encoding='utf-8')
             file_handler.setFormatter(formatter)
             file_handler.setLevel(logging.INFO)
             logger.addHandler(file_handler)

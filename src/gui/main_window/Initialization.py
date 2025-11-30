@@ -9,6 +9,7 @@ from src.core.ConfigManager import ConfigManager
 from src.core.YamlConfig import YamlConfigManager, DEFAULT_APP_CONFIG
 from src.network.MinecraftLan import poll_minecraft_lan_once
 from src.gui.main_window.Handlers import log_message
+from src.tools.LogTrimmer import LogTrimmer
 
 def pre_ui_initialize(window):
     """在UI设置之前进行初始化"""
@@ -23,6 +24,7 @@ def post_ui_initialize(window):
     """在UI设置之后进行初始化"""
     initialize_timers(window)
     perform_initial_port_query(window)
+    start_log_trimmer(window)
 
 def initialize_managers(window):
     """初始化核心管理器"""
@@ -47,6 +49,16 @@ def initialize_timers(window):
     window.ping_timer = QTimer(window)
     window.ping_timer.timeout.connect(lambda: window.load_ping_values())
     window.ping_timer.start(3000)
+
+def start_log_trimmer(window):
+    """启动日志裁剪线程"""
+    try:
+        logs_size = window.app_config.get("app", {}).get("logs_size", "1MB")
+        log_path = os.path.join("logs", "app.log")
+        window.log_trimmer = LogTrimmer(log_path, logs_size)
+        window.log_trimmer.start()
+    except Exception as e:
+        print(f"Error starting LogTrimmer: {e}")
 
 def perform_initial_port_query(window):
     """执行初始的Minecraft端口查询"""

@@ -78,6 +78,7 @@ DEFAULT_APP_CONFIG = {
     "settings": {
         "auto_mapping": True,  # 自动映射开关
         "dark_mode_override": False,  # 手动主题模式覆盖
-        "force_dark_mode": False  # 强制夜间模式
+        "force_dark_mode": False,  # 强制夜间模式
+        "last_server": None  # 上次选择的线路
     }
 }

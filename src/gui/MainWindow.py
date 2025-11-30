@@ -10,7 +10,7 @@ from src.gui.main_window.Lifecycle import handle_close_event
 # Feature/Action Imports from the new subdirectory
 from src.gui.main_window.Threads import start_lan_poller, load_ping_values, update_server_combo
 from src.gui.main_window.Handlers import (set_port, start_map, copy_link, log_message,
-                                          on_auto_mapping_changed, on_dark_mode_changed)
+                                          on_auto_mapping_changed, on_dark_mode_changed, on_server_changed)
 from src.gui.main_window.Actions import open_help_browser, open_server_management_dialog
 
 class PortMappingApp(QWidget):
@@ -76,6 +76,9 @@ class PortMappingApp(QWidget):
 
     def on_dark_mode_changed(self, state):
         on_dark_mode_changed(self, state)
+        
+    def on_server_changed(self, text):
+        on_server_changed(self, text)
         
     def open_server_management(self):
         open_server_management_dialog(self)

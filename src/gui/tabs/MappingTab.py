@@ -29,14 +29,23 @@ class MappingTab(QWidget):
         server_layout.addWidget(QLabel("选择线路:"))
         self.server_combo = QComboBox()
         self.populate_server_combo()
+        self.server_combo.currentTextChanged.connect(self.parent_window.on_server_changed)
         server_layout.addWidget(self.server_combo)
         layout.addLayout(server_layout)
 
     def populate_server_combo(self):
         saved_pings = load_ping_data() or {}
-        for name in self.servers.keys():
+        last_server = self.parent_window.app_config.get("settings", {}).get("last_server")
+        default_index = 0
+        
+        for i, name in enumerate(self.servers.keys()):
             item_text = saved_pings.get(name, f"{name}    未测试")
             self.server_combo.addItem(item_text)
+            
+            if last_server and name == last_server:
+                default_index = i
+        
+        self.server_combo.setCurrentIndex(default_index)
 
     def add_port_input(self, layout):
         port_layout = QHBoxLayout()

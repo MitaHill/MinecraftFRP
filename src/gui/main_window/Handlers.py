@@ -141,3 +141,13 @@ def on_dark_mode_changed(window, state):
     
     mode_text = "夜间模式" if window.force_dark_mode else "昼间模式"
     log_message(window, f"已切换到{mode_text}，暂停自动昼夜切换", "blue")
+
+def on_server_changed(window, text):
+    """线路选择变更处理，保存记忆"""
+    if not text:
+        return
+    # text 格式可能是 "ServerName 50ms" 或 "ServerName"
+    server_name = text.split()[0]
+    
+    window.app_config["settings"]["last_server"] = server_name
+    window.yaml_config.save_config("app_config.yaml", window.app_config)

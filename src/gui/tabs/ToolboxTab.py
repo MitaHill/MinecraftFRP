@@ -1,7 +1,7 @@
 import subprocess
 import os
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QPushButton, QMessageBox)
-from src.gui.Dialogs import NetworkInfoDialog, PingDialog
+from src.gui.dialogs.NetworkDialogs import NetworkInfoDialog, PingDialog
 from src.utils.PathUtils import get_resource_path
 
 class ToolboxTab(QWidget):

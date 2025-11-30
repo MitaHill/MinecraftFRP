@@ -1,6 +1,6 @@
 import random
 from threading import Lock
-from src.core.yaml_config import YamlConfigManager, DEFAULT_APP_CONFIG
+from src.core.YamlConfig import YamlConfigManager, DEFAULT_APP_CONFIG
 
 # 配置管理器
 config_manager = YamlConfigManager()

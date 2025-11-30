@@ -3,9 +3,9 @@ from PySide6.QtCore import QTimer, QMutexLocker
 from PySide6.QtWidgets import QMessageBox, QApplication
 from PySide6.QtGui import QTextCursor
 
-from src.core.frpc_thread import FrpcThread
-from src.utils.port_generator import gen_port
-from src.gui.main_window.threads import wait_for_thread
+from src.core.FrpcThread import FrpcThread
+from src.utils.PortGenerator import gen_port
+from src.gui.main_window.Threads import wait_for_thread
 from src.gui.Styles import STYLE
 
 def set_port(window, port):

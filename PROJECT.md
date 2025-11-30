@@ -178,3 +178,6 @@ MinecraftFRP/
 | 2025-11-28 | `feat` | 默认开启自动映射功能 | `2f7043e` (refactor/init-structure) |
 | 2025-11-28 | `refactor` | GUI模块重构：拆分 Tab 组件，重命名文件符合 PascalCase 规范 | `d76f885` (refactor/init-structure) |
 | 2025-11-28 | `fix` | 修复 MainWindow.py 语法错误 | `a287bf6` (refactor/init-structure) |
+| 2025-11-28 | `fix` | 修复 GUI 重构后的 ImportError 和 SyntaxError | `2dd855d` (refactor/init-structure) |
+| 2025-11-28 | `refactor` | 深度模块化 GUI 代码并修复初始化错误 | `3bd1949` (refactor/init-structure) |
+| 2025-11-28 | `chore` | 执行正式打包构建 (PyInstaller) | `3bd1949` (refactor/init-structure) |

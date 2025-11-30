@@ -3,7 +3,7 @@ import signal
 import argparse
 from PySide6.QtWidgets import QApplication
 
-from src.core.server_manager import ServerManager
+from src.core.ServerManager import ServerManager
 from src.gui.MainWindow import PortMappingApp
 from src.cli.runner import run_cli
 

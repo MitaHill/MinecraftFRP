@@ -3,6 +3,9 @@ import os
 import requests
 import threading
 from pathlib import Path
+from src.utils.LogManager import get_logger
+
+logger = get_logger()
 
 class AdManager:
     def __init__(self):
@@ -31,10 +34,10 @@ class AdManager:
                     f.write(response.text)
                 self.parse_ads()
             else:
-                print(f"下载ads.json失败，状态码: {response.status_code}")
+                logger.warning(f"下载ads.json失败，状态码: {response.status_code}")
                 self.try_load_local_ads()
         except Exception as e:
-            print(f"下载ads.json时出错: {e}")
+            logger.error(f"下载ads.json时出错: {e}")
             self.try_load_local_ads()
 
     def parse_ads(self):
@@ -42,15 +45,15 @@ class AdManager:
             with open(self.ads_file, "r", encoding="utf-8") as f:
                 self.ads = json.load(f)
         except Exception as e:
-            print(f"解析ads.json时出错: {e}")
+            logger.error(f"解析ads.json时出错: {e}")
             self.load_default_ads()
 
     def try_load_local_ads(self):
         if self.ads_file.exists():
-            print(f"发现本地ads.json在{self.ads_file}，尝试读取。")
+            logger.info(f"发现本地ads.json在{self.ads_file}，尝试读取。")
             self.parse_ads()
         else:
-            print("本地没有ads.json，使用默认广告。")
+            logger.info("本地没有ads.json，使用默认广告。")
             self.load_default_ads()
 
     def load_default_ads(self):

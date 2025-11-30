@@ -1,6 +1,10 @@
 import os
 import yaml
 from pathlib import Path
+from typing import Dict, Any, Optional
+from src.utils.LogManager import get_logger
+
+logger = get_logger()
 
 class YamlConfigManager:
     """YAML配置文件管理器"""
@@ -9,7 +13,7 @@ class YamlConfigManager:
         self.config_dir = Path(config_dir)
         self.config_dir.mkdir(exist_ok=True)
         
-    def load_config(self, filename, default_config=None):
+    def load_config(self, filename: str, default_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """加载YAML配置文件"""
         config_path = self.config_dir / filename
         
@@ -18,7 +22,7 @@ class YamlConfigManager:
                 with open(config_path, 'r', encoding='utf-8') as f:
                     return yaml.safe_load(f)
             except Exception as e:
-                print(f"读取配置文件 {filename} 失败: {e}")
+                logger.error(f"读取配置文件 {filename} 失败: {e}")
                 if default_config:
                     self.save_config(filename, default_config)
                     return default_config
@@ -29,7 +33,7 @@ class YamlConfigManager:
                 
         return {}
     
-    def save_config(self, filename, config):
+    def save_config(self, filename: str, config: Dict[str, Any]) -> bool:
         """保存YAML配置文件"""
         config_path = self.config_dir / filename
         
@@ -39,10 +43,10 @@ class YamlConfigManager:
                          allow_unicode=True, indent=2)
             return True
         except Exception as e:
-            print(f"保存配置文件 {filename} 失败: {e}")
+            logger.error(f"保存配置文件 {filename} 失败: {e}")
             return False
     
-    def get_config_path(self, filename):
+    def get_config_path(self, filename: str) -> Path:
         """获取配置文件完整路径"""
         return self.config_dir / filename
 

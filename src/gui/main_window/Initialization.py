@@ -3,22 +3,24 @@ import sys
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QMessageBox
 
-from src.utils.ad_manager import AdManager
-from src.core.config_manager import ConfigManager
-from src.core.yaml_config import YamlConfigManager, DEFAULT_APP_CONFIG
-from src.utils.path_utils import get_resource_path
-from src.network.minecraft_lan import poll_minecraft_lan_once
-from src.gui.handlers import log_message
+from src.utils.AdManager import AdManager
+from src.utils.PathUtils import get_resource_path
+from src.core.ConfigManager import ConfigManager
+from src.core.YamlConfig import YamlConfigManager, DEFAULT_APP_CONFIG
+from src.network.MinecraftLan import poll_minecraft_lan_once
+from src.gui.main_window.Handlers import log_message
 
-def initialize_app(window):
-    """主窗口和应用程序的全面初始化"""
+def pre_ui_initialize(window):
+    """在UI设置之前进行初始化"""
     initialize_managers(window)
     load_configuration(window)
     
     if not os.path.exists(get_resource_path("frpc.exe")):
         QMessageBox.critical(window, "错误", "frpc.exe 未找到，程序即将退出。")
         sys.exit(1)
-        
+
+def post_ui_initialize(window):
+    """在UI设置之后进行初始化"""
     initialize_timers(window)
     perform_initial_port_query(window)
 

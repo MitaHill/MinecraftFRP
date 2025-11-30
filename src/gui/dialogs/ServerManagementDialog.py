@@ -2,10 +2,10 @@ import time
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QDialog, QTableWidgetItem, QMessageBox, QProgressDialog
 
-from src.utils.ssh_manager import ServerManagementConfig
-from src.gui.dialogs.ui_components import PasswordDialog, setup_server_management_ui
-from src.gui.dialogs.threads import ServerListDownloadThread, ServerListUploadThread
-from src.gui.dialogs.data_handler import load_and_decrypt_server_list, save_and_upload_server_list
+from src.utils.SshManager import ServerManagementConfig
+from src.gui.dialogs.UiComponents import PasswordDialog, setup_server_management_ui
+from src.gui.dialogs.Threads import ServerListDownloadThread, ServerListUploadThread
+from src.gui.dialogs.DataHandler import load_and_decrypt_server_list, save_and_upload_server_list
 
 class ServerManagementDialog(QDialog):
     def __init__(self, parent=None):

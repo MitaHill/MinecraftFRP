@@ -3,15 +3,15 @@ from PySide6.QtWidgets import QWidget
 from PySide6.QtGui import QCloseEvent
 
 # Core Imports from the new subdirectory
-from src.gui.main_window.initialization import pre_ui_initialize, post_ui_initialize
-from src.gui.main_window.ui_setup import setup_main_window_ui
-from src.gui.main_window.lifecycle import handle_close_event
+from src.gui.main_window.Initialization import pre_ui_initialize, post_ui_initialize
+from src.gui.main_window.UiSetup import setup_main_window_ui
+from src.gui.main_window.Lifecycle import handle_close_event
 
 # Feature/Action Imports from the new subdirectory
-from src.gui.main_window.threads import start_lan_poller, load_ping_values, update_server_combo
-from src.gui.main_window.handlers import (set_port, start_map, copy_link, log_message,
+from src.gui.main_window.Threads import start_lan_poller, load_ping_values, update_server_combo
+from src.gui.main_window.Handlers import (set_port, start_map, copy_link, log_message,
                                           on_auto_mapping_changed, on_dark_mode_changed)
-from src.gui.main_window.actions import open_help_browser, open_server_management_dialog
+from src.gui.main_window.Actions import open_help_browser, open_server_management_dialog
 
 class PortMappingApp(QWidget):
     inst = None

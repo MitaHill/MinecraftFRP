@@ -2,6 +2,9 @@ import base64
 import json
 import os
 from Crypto.Cipher import AES
+from src.utils.LogManager import get_logger
+
+logger = get_logger()
 
 # 解密JSON文件
 def decrypt_data(encrypted_data, key):
@@ -15,7 +18,7 @@ def decrypt_data(encrypted_data, key):
         decrypted = decrypted[:-pad_len]
         return decrypted.decode('utf-8')
     except Exception as e:
-        print(f"解密失败: {e}")
+        logger.error(f"解密失败: {e}")
         return None
 
 # 加密数据
@@ -40,7 +43,7 @@ def encrypt_data(data, key):
         return base64.b64encode(combined).decode('utf-8')
         
     except Exception as e:
-        print(f"加密失败: {e}")
+        logger.error(f"加密失败: {e}")
         return None
 
 # 从JSON数据加载服务器列表
@@ -55,5 +58,5 @@ def load_servers_from_json(json_data):
             servers[name] = (host, port, token)
         return servers
     except Exception as e:
-        print(f"解析服务器列表失败: {e}")
+        logger.error(f"解析服务器列表失败: {e}")
         return None

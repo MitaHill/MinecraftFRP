@@ -1,6 +1,7 @@
 import subprocess
 from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QLineEdit, QTextEdit, QMessageBox
 from PySide6.QtCore import QTimer
+from src.tools.PingManager import PingManager
 
 class NetworkInfoDialog(QDialog):
     def __init__(self, parent):
@@ -39,7 +40,6 @@ class PingDialog(QDialog):
         self.result_text = QTextEdit()
         self.result_text.setReadOnly(True)
         layout.addWidget(self.result_text)
-        from src.tools.ping_manager import PingManager
         self.ping_manager = PingManager()
 
     def start_ping(self):

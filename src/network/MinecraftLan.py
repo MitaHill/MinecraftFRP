@@ -4,6 +4,9 @@ import re
 import time
 import sys
 from PySide6.QtCore import QThread, Signal, QMutex, QMutexLocker
+from src.utils.LogManager import get_logger
+
+logger = get_logger()
 
 # Minecraft LAN 探测配置
 MCAST_GRP = '224.0.2.60'
@@ -30,7 +33,7 @@ class MinecraftLANPoller(QThread):
                     self.last_port = port
                     self.port_found.emit(port)
             except Exception as e:
-                print(f"LAN轮询器出错: {e}", file=sys.stderr)
+                logger.error(f"LAN轮询器出错: {e}")
 
             for _ in range(3):
                 if self._stop_requested:
@@ -49,7 +52,7 @@ class MinecraftLANPoller(QThread):
             try:
                 sock.bind(('', MCAST_PORT))
             except OSError as e:
-                print(f"绑定端口失败: {e}", file=sys.stderr)
+                logger.error(f"绑定端口失败: {e}")
                 return None
 
             mreq = struct.pack("=4sl", socket.inet_aton(MCAST_GRP), socket.INADDR_ANY)
@@ -63,12 +66,12 @@ class MinecraftLANPoller(QThread):
             except socket.timeout:
                 pass
             except Exception as e:
-                print(f"接收LAN广播时出错: {e}", file=sys.stderr)
+                logger.error(f"接收LAN广播时出错: {e}")
 
             return None
 
         except Exception as e:
-            print(f"创建LAN轮询器套接字时出错: {e}", file=sys.stderr)
+            logger.error(f"创建LAN轮询器套接字时出错: {e}")
             return None
         finally:
             if sock:
@@ -100,7 +103,7 @@ def poll_minecraft_lan_once():
     except socket.timeout:
         return None
     except Exception as e:
-        print(f"UDP查询出错: {e}")
+        logger.error(f"UDP查询出错: {e}")
         return None
     finally:
         if sock:

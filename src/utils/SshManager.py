@@ -7,6 +7,9 @@ import paramiko
 import os
 import tempfile
 from pathlib import Path
+from src.utils.LogManager import get_logger
+
+logger = get_logger()
 
 class SSHManager:
     def __init__(self):
@@ -20,7 +23,7 @@ class SSHManager:
             self.client.connect(hostname, port=port, username=username, password=password, timeout=10)
             return True
         except Exception as e:
-            print(f"SSH连接失败: {e}")
+            logger.error(f"SSH连接失败: {e}")
             return False
     
     def download_file(self, remote_path, local_path):
@@ -33,7 +36,7 @@ class SSHManager:
             sftp.close()
             return True
         except Exception as e:
-            print(f"下载文件失败: {e}")
+            logger.error(f"下载文件失败: {e}")
             return False
     
     def upload_file(self, local_path, remote_path):
@@ -46,7 +49,7 @@ class SSHManager:
             sftp.close()
             return True
         except Exception as e:
-            print(f"上传文件失败: {e}")
+            logger.error(f"上传文件失败: {e}")
             return False
     
     def close(self):

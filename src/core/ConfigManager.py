@@ -1,6 +1,9 @@
 import os
 from threading import Lock
 from pathlib import Path
+from src.utils.LogManager import get_logger
+
+logger = get_logger()
 
 class ConfigManager:
     def __init__(self, filename="frpc.ini"):
@@ -12,7 +15,7 @@ class ConfigManager:
         self.filename = config_dir / filename
         self.mutex = Lock()
 
-    def create_config(self, host, port, token, local_port, remote_port, user_id):
+    def create_config(self, host: str, port: int, token: str, local_port: int, remote_port: int, user_id: int) -> bool:
         with self.mutex:
             config_content = f"""[common]
 server_addr={host}
@@ -30,15 +33,15 @@ remote_port={remote_port}
                     f.write(config_content)
                 return True
             except Exception as e:
-                print(f"写入配置文件出错: {e}")
+                logger.error(f"写入配置文件出错: {e}")
                 return False
 
-    def delete_config(self):
+    def delete_config(self) -> bool:
         with self.mutex:
             try:
                 if os.path.exists(self.filename):
                     os.remove(self.filename)
                     return True
             except Exception as e:
-                print(f"删除配置文件出错: {e}")
+                logger.error(f"删除配置文件出错: {e}")
             return False

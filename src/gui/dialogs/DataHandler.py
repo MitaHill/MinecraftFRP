@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 from PySide6.QtWidgets import QMessageBox
 
-from src.utils.crypto import decrypt_data, encrypt_data
+from src.utils.Crypto import decrypt_data, encrypt_data
 
 def load_and_decrypt_server_list(dialog):
     """加载并解密服务器列表文件"""

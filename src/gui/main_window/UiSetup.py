@@ -7,7 +7,10 @@ from src.gui.Styles import STYLE
 from src.gui.tabs.MappingTab import MappingTab
 from src.gui.tabs.ToolboxTab import ToolboxTab
 from src.gui.tabs.SettingsTab import SettingsTab
-from src.utils.path_utils import get_resource_path
+from src.utils.PathUtils import get_resource_path
+from src.utils.LogManager import get_logger
+
+logger = get_logger()
 
 def setup_main_window_ui(window, servers):
     """初始化主窗口UI"""
@@ -30,7 +33,7 @@ def setup_window_icon(window):
         if icon_path.exists():
             window.setWindowIcon(QIcon(str(icon_path)))
     except Exception as e:
-        print(f"设置图标出错: {e}")
+        logger.warning(f"设置图标出错: {e}")
 
 def setup_theme(window):
     """根据配置或时间设置主题"""

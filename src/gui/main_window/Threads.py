@@ -1,8 +1,11 @@
 from PySide6.QtCore import QMutexLocker, QEventLoop, QTimer
 
-from src.core.ping_thread import PingThread
-from src.network.minecraft_lan import MinecraftLANPoller
-from src.network.ping_utils import save_ping_data
+from src.core.PingThread import PingThread
+from src.network.MinecraftLan import MinecraftLANPoller
+from src.network.PingUtils import save_ping_data
+from src.utils.LogManager import get_logger
+
+logger = get_logger()
 
 THREAD_TIMEOUT = 3000
 
@@ -51,4 +54,4 @@ def wait_for_thread(thread):
     if timer.isActive():
         timer.stop()
     else:
-        print(f"{type(thread).__name__} 线程超时未响应，强制继续")
+        logger.warning(f"{type(thread).__name__} 线程超时未响应，强制继续")

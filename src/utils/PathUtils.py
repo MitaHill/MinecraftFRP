@@ -1,7 +1,7 @@
 import sys
 import os
 
-def get_resource_path(relative_path):
+def get_resource_path(relative_path: str) -> str:
     """
     获取资源的绝对路径。
     支持开发环境（当前目录）和 PyInstaller 打包环境（sys._MEIPASS）。

@@ -1,6 +1,6 @@
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton, 
                               QLabel, QComboBox, QLineEdit, QTextEdit)
-from src.network.ping_utils import load_ping_data
+from src.network.PingUtils import load_ping_data
 
 class MappingTab(QWidget):
     def __init__(self, parent_window, servers):

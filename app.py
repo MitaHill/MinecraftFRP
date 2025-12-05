@@ -25,24 +25,20 @@ def main():
     """主程序入口"""
     # 设置信号处理器
     signal.signal(signal.SIGINT, sigint_handler)
-    
-    # 初始化服务器管理器
-    server_manager = ServerManager()
-    servers = server_manager.get_servers()
-    
-    # 解析命令行参数
-    args = parse_args(servers.keys())
-    
-    # 如果有命令行参数，则执行CLI逻辑
-    if args.local_port or args.auto_find or args.server:
-        # QApplication对于线程信号处理是必需的
+
+    # 优先处理CLI调用 (简化版，仅用于演示)
+    # 完整的CLI逻辑需要后续重构以支持异步加载
+    if len(sys.argv) > 1 and any(arg.startswith('--') for arg in sys.argv[1:]):
+        server_manager = ServerManager()
+        servers = server_manager.get_servers()
+        args = parse_args(servers.keys())
         app = QApplication(sys.argv)
         run_cli(servers, args)
         sys.exit(0)
-    
-    # 否则，启动GUI
+
+    # GUI 启动路径 - 传入空字典以实现快速启动
     app = QApplication(sys.argv)
-    main_window = PortMappingApp(servers)
+    main_window = PortMappingApp({})  # Pass empty dict for instant startup
     main_window.show()
     sys.exit(app.exec())
 

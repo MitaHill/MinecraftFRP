@@ -21,10 +21,11 @@ class ServerManager:
         k_part1 = "clash"
         k_part2 = "man"
         self.key = k_part1 + k_part2
-        
+
+        # 首先加载内置的，然后尝试从本地文件覆盖
         self.servers = self._load_default_servers()
-        self.load_servers()
-    
+        self._load_servers_from_local()
+
     def _load_default_servers(self) -> Dict[str, Tuple[str, int, str]]:
         """加载并解密内置的默认服务器列表"""
         try:
@@ -36,36 +37,50 @@ class ServerManager:
             logger.error(f"无法加载内置服务器列表: {e}")
         return {}
 
-    def load_servers(self) -> None:
-        url = "https://clash.ink/file/frp-server-list.json"
-        local_path = "frp-server-list.json"
+    def _load_servers_from_local(self) -> None:
+        """从本地文件加载服务器列表，不进行网络下载"""
+        local_path = "config/frp-server-list.json"
+        encrypted_data = read_json_file(local_path)
+        if not encrypted_data:
+            logger.info("本地服务器列表文件不存在或为空，使用内置列表。")
+            return
 
-        # 尝试下载JSON文件
-        if download_json(url, f"config/{local_path}"):
-            logger.info("成功下载JSON文件")
-        else:
-            logger.warning("下载JSON文件失败，尝试使用本地文件")
-
-        # 读取JSON文件
-        encrypted_data = read_json_file(f"config/{local_path}")
-        if encrypted_data:
-            # 解密
+        try:
             decrypted_data = decrypt_data(encrypted_data, self.key)
             if decrypted_data:
-                # 解析JSON
                 json_data = json.loads(decrypted_data)
                 servers = load_servers_from_json(json_data)
                 if servers:
                     self.servers = servers
-                    logger.info("成功加载服务器列表")
-                    return
+                    logger.info("已从本地文件加载服务器列表。")
+        except Exception as e:
+            logger.error(f"从本地文件加载服务器列表失败: {e}，将使用内置列表。")
 
-        logger.info("使用内置默认服务器列表")
-        # 如果self.servers已经在__init__中初始化为默认值，则保持不变
-        # 再次确认默认值是否有效
-        if not self.servers:
-             # 如果解密失败且无远程配置，则是一个严重错误，但为了防止crash，我们返回空字典
-             logger.warning("警告: 无法加载任何服务器配置")
+    def update_servers_from_network(self) -> Optional[Dict[str, Tuple[str, int, str]]]:
+        """从网络下载并更新服务器列表，返回新的服务器字典"""
+        url = "https://clash.ink/file/frp-server-list.json"
+        local_path = "config/frp-server-list.json"
+
+        if not download_json(url, local_path):
+            logger.warning("下载新的服务器列表失败。")
+            return None
+
+        logger.info("成功下载新的服务器列表文件。")
+        encrypted_data = read_json_file(local_path)
+        if encrypted_data:
+            try:
+                decrypted_data = decrypt_data(encrypted_data, self.key)
+                if decrypted_data:
+                    json_data = json.loads(decrypted_data)
+                    servers = load_servers_from_json(json_data)
+                    if servers:
+                        self.servers = servers
+                        logger.info("成功从网络更新并加载服务器列表。")
+                        return servers
+            except Exception as e:
+                logger.error(f"解析下载的服务器列表失败: {e}")
+
+        return None
 
     def get_servers(self) -> Dict[str, Tuple[str, int, str]]:
         return self.servers

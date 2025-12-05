@@ -3,6 +3,7 @@ from PySide6.QtCore import QMutexLocker, QEventLoop, QTimer
 from src.core.PingThread import PingThread
 from src.network.MinecraftLan import MinecraftLANPoller
 from src.network.PingUtils import save_ping_data
+from src.core.ServerUpdateThread import ServerUpdateThread
 from src.utils.LogManager import get_logger
 
 logger = get_logger()
@@ -31,6 +32,12 @@ def load_ping_values(window):
     window.ping_thread = PingThread(window.SERVERS)
     window.ping_thread.ping_results.connect(window.update_server_combo)
     window.ping_thread.start()
+
+def start_server_list_update(window):
+    """启动后台线程，从网络更新服务器列表"""
+    window.server_update_thread = ServerUpdateThread()
+    window.server_update_thread.servers_updated.connect(window.on_servers_updated)
+    window.server_update_thread.start()
 
 def update_server_combo(window, results):
     """使用ping结果更新服务器下拉列表"""

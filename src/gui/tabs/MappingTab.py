@@ -47,6 +47,12 @@ class MappingTab(QWidget):
         
         self.server_combo.setCurrentIndex(default_index)
 
+    def update_server_list(self, new_servers):
+        """用新的服务器列表数据更新下拉框"""
+        self.servers = new_servers
+        self.server_combo.clear()
+        self.populate_server_combo()
+
     def add_port_input(self, layout):
         port_layout = QHBoxLayout()
         port_layout.addWidget(QLabel("输入本地端口:"))

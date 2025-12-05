@@ -23,7 +23,8 @@ def pre_ui_initialize(window):
 def post_ui_initialize(window):
     """在UI设置之后进行初始化"""
     initialize_timers(window)
-    perform_initial_port_query(window)
+    # 移除同步的端口查询，完全依赖后台异步轮询
+    # perform_initial_port_query(window) 
     start_log_trimmer(window)
 
 def initialize_managers(window):

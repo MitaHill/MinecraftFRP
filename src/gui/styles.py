@@ -1,12 +1,16 @@
 # 主题样式
 STYLE = {
     "light": """
-QWidget{background:#f8f9fa;font:14px 'Microsoft YaHei';}
+QWidget{background:#f8f9fa;font-size:14px;font-family:'Microsoft YaHei';}
 QLabel{color:#495057;margin-bottom:8px;}
 QPushButton{background:#4CAF50;color:#fff;padding:8px 16px;border:none;border-radius:4px;}
 QPushButton:hover{background:#45a049;}
-QLineEdit,QTextEdit{background:#fff;border:1px solid #dee2e6;padding:8px;border-radius:4px;}
+QLineEdit,QTextEdit{background:#fff;border:1px solid #dee2e6;padding:8px;border-radius:4px;color:#000;}
 QComboBox{min-width:150px;}
+QCheckBox{color:#000;spacing:5px;}
+QCheckBox::indicator{width:16px;height:16px;border:1px solid #ced4da;border-radius:3px;background-color:#ffffff;}
+QCheckBox::indicator:checked{background-color:#4CAF50;border:1px solid #4CAF50;}
+QCheckBox::indicator:hover{border:1px solid #adb5bd;}
 QTabBar::tab {
     background: white;
     color: black;
@@ -27,9 +31,21 @@ QTabBar::tab:hover {
 QTabWidget::pane {
     background: #f8f9fa;
 }
+QTableView, QTableWidget {
+    background-color: #ffffff;
+    border: 1px solid #dee2e6;
+    gridline-color: #dee2e6;
+    color: #212529;
+}
+QHeaderView::section {
+    background-color: #f1f3f5;
+    color: #495057;
+    padding: 4px;
+    border: 1px solid #dee2e6;
+}
 """,
     "dark": """
-QWidget{background:#1e1e1e;font:14px 'Microsoft YaHei';color:#e0e0e0;}
+QWidget{background:#1e1e1e;font-size:14px;font-family:'Microsoft YaHei';color:#e0e0e0;}
 QLabel{color:#b3b3b3;}
 QPushButton{background:#333;color:#fff;padding:8px 16px;border:none;border-radius:4px;}
 QPushButton:hover{background:#454545;}
@@ -37,7 +53,7 @@ QLineEdit,QTextEdit{background:#2d2d2d;border:1px solid #404040;padding:8px;bord
 QComboBox{min-width:150px;background-color:#2d2d2d;border:1px solid #404040;border-radius:4px;padding:4px;}
 QComboBox:on{border:1px solid #4CAF50;}
 QComboBox QAbstractItemView{background-color:#2d2d2d;color:#e0e0e0;border:1px solid #404040;selection-background-color:#454545;}
-QCheckBox{spacing:5px;}
+QCheckBox{color:#e0e0e0;spacing:5px;}
 QCheckBox::indicator{width:16px;height:16px;border:1px solid #555;border-radius:3px;background-color:#2d2d2d;}
 QCheckBox::indicator:checked{background-color:#4CAF50;border:1px solid #4CAF50;}
 QCheckBox::indicator:hover{border:1px solid #777;}
@@ -60,6 +76,18 @@ QTabBar::tab:hover {
 }
 QTabWidget::pane {
     background: #1e1e1e;
+}
+QTableView, QTableWidget {
+    background-color: #2d2d2d;
+    border: 1px solid #404040;
+    gridline-color: #404040;
+    color: #e0e0e0;
+}
+QHeaderView::section {
+    background-color: #222222;
+    color: #b3b3b3;
+    padding: 4px;
+    border: 1px solid #404040;
 }
 """,
 }

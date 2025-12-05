@@ -8,6 +8,7 @@ build/
 dist/
 output/
 *.spec
+build/.nuitka-cache/
 
 # Installer logs
 pip-log.txt
@@ -63,3 +64,6 @@ config/ping_data.yaml
 
 # Secret / Private
 secrets.yaml
+
+.gemini/
+gha-creds-*.json

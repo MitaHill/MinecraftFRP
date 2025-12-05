@@ -19,7 +19,8 @@ network:
 settings:
   auto_mapping: false
   dark_mode_override: true
-  force_dark_mode: false
+  force_dark_mode: true
+  last_server: 北京2
 ui:
   ad_update_interval: 3000
   ping_update_interval: 3000

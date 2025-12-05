@@ -1,6 +1,7 @@
 import base64
 import json
 import os
+import hashlib
 from Crypto.Cipher import AES
 from src.utils.LogManager import get_logger
 
@@ -60,3 +61,11 @@ def load_servers_from_json(json_data):
     except Exception as e:
         logger.error(f"解析服务器列表失败: {e}")
         return None
+
+def calculate_sha256(filepath):
+    """Calculates the SHA256 hash of a file."""
+    sha256_hash = hashlib.sha256()
+    with open(filepath, "rb") as f:
+        for byte_block in iter(lambda: f.read(4096), b""):
+            sha256_hash.update(byte_block)
+    return sha256_hash.hexdigest()

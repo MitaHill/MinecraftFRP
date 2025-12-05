@@ -3,12 +3,22 @@
 ## 1. 项目概述
 本项目 "MinecraftFRP" 是一个基于 Python 的 FRP (Fast Reverse Proxy) 客户端封装工具，专为 Minecraft 玩家设计。它提供了图形化界面 (GUI)，能够自动下载服务器列表、探测局域网内的 Minecraft 游戏端口，并一键开启内网穿透映射，方便玩家进行联机游戏。
 
+## 1.5 对AI的说明
+当你阅读此行文字时，请记住：
+和平时的代码生成不同，这个项目的代码质量要求非常高，必须严格遵守文档中的各项规范和要求。
+请务必完整、准确地理解并执行文档中的每一条规范，确保生成的代码符合项目的高标准。
+如果你在生成代码时遇到任何不确定的地方，请务必参考并遵循本项目企划与架构文档中的相关内容，确保代码质量和一致性。
+你的每一次代码生成都将直接影响项目的整体质量和可维护性，请务必认真对待每一个细节，严格按照文档要求进行编码。
+感谢你的理解与配合！
+以及请使用**简体中文**语言和用户进行对话沟通，以确保信息传达的准确性和一致性。
+*   **交互式脚本**: AI助手不应尝试执行需要用户输入的交互式脚本（如 `build.py`）。应当等待用户手动执行，并根据用户提供的结果或反馈来继续下一步工作。
+
 ## 2. 技术栈
 - **编程语言**: Python 3.8+
 - **GUI 框架**: PySide6 (基于 Qt)
 - **核心功能**: FRP (通过 subprocess 调用 frpc 可执行文件)
 - **依赖管理**: pip (requirements.txt)
-- **打包工具**: PyInstaller
+- **打包工具**: Nuitka
 - **版本控制**: Git
 
 ## 3. Git 工作流与规范 (严格执行)
@@ -64,6 +74,19 @@
 *   [ ] 进一步完善异常处理机制
 *   [ ] 优化多线程 Ping 测速性能
 *   [ ] 支持更多类型的 FRP 配置选项
+*   [ ] **客户端自动更新功能**
+    *   [ ] **检查与下载**:
+        *   [ ] 在主程序启动的后台线程中，从服务器异步获取 `version.json`。
+        *   [ ] 比较本地版本与服务器版本，若有更新则弹出提示对话框，并显示更新日志。
+        *   [ ] 用户确认后，在后台线程下载新版本程序，并可显示下载进度。
+        *   [ ] 下载完成后，校验文件的 SHA256 哈希值，确保文件完整与安全。
+    *   [ ] **执行与替换**:
+        *   [ ] 创建一个独立的 `updater.py` 脚本，其唯一职责是执行文件替换和重启操作。
+        *   [ ] `build.py` 脚本增加新逻辑：先将 `updater.py` 打包成 `updater.exe`。
+        *   [ ] `build.py` 在打包主程序时，将 `updater.exe` 作为二进制资源嵌入。
+        *   [ ] 主程序在校验下载成功后，从自身资源中释放 `updater.exe` 到临时目录。
+        *   [ ] 主程序启动 `updater.exe`（通过命令行参数传递新/旧文件路径及主进程ID），然后完全退出。
+        *   [ ] `updater.exe` 等待主进程结束后，执行文件覆盖，并重新启动新版主程序。
 
 ## 5. 目录结构
 
@@ -107,6 +130,10 @@ MinecraftFRP/
 *   **类名**: 推荐与文件名保持一致，使用大驼峰命名法。
 *   **目录名**: 推荐使用大驼峰命名法或全小写（根据具体层级保持统一）。
 
+### 6.3 辅助脚本规范 (Scripting Convention)
+*   **语言统一**: 为保证项目的技术栈统一与可维护性，所有辅助脚本（如构建、部署、自动化任务等）**必须**使用 **Python** 语言编写。
+*   **入口文件**: 根目录下的 `build.py` 是项目主要的自动化入口。
+
 ## 7. 配置、数据与入口规范 (Config, Data & Entry Point)
 
 ### 7.1 程序入口 (Entry Point)
@@ -148,10 +175,11 @@ MinecraftFRP/
 
 ## 10. 打包与发布规范 (Packaging)
 
-### 10.1 PyInstaller 打包标准
+### 10.1 Nuitka 打包标准
+*   **编译目标**: Nuitka 将 Python 源码编译为C语言级别，以追求更高的性能和反逆向能力。
 *   **单文件发布**: 默认使用 `--onefile` 模式。
-*   **隐藏控制台**: GUI 程序必须使用 `--windowed` 隐藏 CMD 窗口。
-*   **资源内置**: 所有外部依赖（如 `frpc.exe`, `tracert_gui.exe`, 图标文件）必须通过 `--add-binary` 或 `--add-data` 内置到 EXE 中。
+*   **隐藏控制台**: GUI 程序必须使用 `--windows-disable-console` (或 `--disable-console`) 隐藏 CMD 窗口。
+*   **资源内置**: 所有外部依赖（如 `frpc.exe`, 图标文件等）必须通过 `--include-data-file` 或 `--include-data-dir` 等参数内置到 EXE 中。
 
 ### 10.2 路径解析
 *   **动态路径**: 代码中禁止使用硬编码的相对路径加载资源。
@@ -160,6 +188,34 @@ MinecraftFRP/
 ### 10.3 版本归档
 *   **Git Hash**: 打包输出目录必须包含当前的 Git Commit Hash (Short)，以便区分不同版本构建。
     *   格式: `dist/AppName_<git_hash>`
+
+### 10.4 自动更新与分发 (Auto-Update & Distribution)
+
+为了实现一个健壮、安全且不易被杀毒软件误报的自动更新功能，本项目采用**“独立Python更新器”**方案。
+
+*   **架构设计**:
+    1.  **独立更新器**: 开发一个独立的 `updater.py` 脚本，其唯一职责是执行更新操作。该脚本将被 Nuitka 打包成 `updater.exe`。
+    2.  **资源嵌入**: 在最终打包 `MinecraftFRP.exe` 时，会将 `updater.exe` 作为二进制资源嵌入到主程序内部。用户下载的始终是单文件程序。
+
+*   **更新流程**:
+    1.  **检查更新**: 主程序 `MinecraftFRP.exe` 通过访问版本清单文件，判断是否存在新版本。
+    2.  **释放更新器**: 用户同意更新后，主程序会将内置的 `updater.exe` 释放到系统临时目录。
+    3.  **执行并退出**: 主程序启动 `updater.exe`，并通过命令行参数传递必要信息（如主进程ID、新旧文件路径），然后主程序完全退出。
+    4.  **更新器接管**: `updater.exe` 确认主程序退出后，执行文件替换操作，并能以更智能的方式处理潜在的异常（如文件占用、权限问题）。
+    5.  **重启**: 更新完成后，`updater.exe` 负责重新启动新版本的 `MinecraftFRP.exe`。
+
+*   **版本清单与下载地址**:
+    *   **版本清单**: 自动更新机制依赖于服务器上的 `version.json` 文件来获取最新版本信息。其固定访问地址为：
+        *   `https://z.clash.ink/chfs/shared/MinecraftFRP/version.json`
+    *   **固定下载地址**: 最新版本的 `MinecraftFRP.exe` 程序包将始终可通过以下地址获取：
+        *   `https://z.clash.ink/chfs/shared/MinecraftFRP/lastet/MinecraftFRP.exe`
+
+### 10.5 Nuitka 构建命令
+*   **一键构建**: 根目录下的 `build.py` 脚本提供了自动化构建功能，可一键完成编译、打包和重命名。
+*   **核心命令参考**:
+    ```shell
+    .\.venv\Scripts\python.exe -m nuitka --onefile --windows-disable-console --plugin-enable=pyside6 --windows-icon-from-ico=logo.ico --include-data-file=frpc.exe=frpc.exe --include-data-file=tracert_gui.exe=tracert_gui.exe --include-data-file=logo.ico=logo.ico --output-dir=<OUTPUT_DIR> --assume-yes-for-downloads app.py
+    ```
 
 ## 11. 项目变更日志 (Logs)
 
@@ -181,3 +237,32 @@ MinecraftFRP/
 | 2025-11-28 | `fix` | 修复 GUI 重构后的 ImportError 和 SyntaxError | `2dd855d` (refactor/init-structure) |
 | 2025-11-28 | `refactor` | 深度模块化 GUI 代码并修复初始化错误 | `3bd1949` (refactor/init-structure) |
 | 2025-11-28 | `chore` | 执行正式打包构建 (PyInstaller) | `3bd1949` (refactor/init-structure) |
+
+## 12. 自动化构建与部署 (CI/CD)
+
+本项目拥有一套基于 Python 的自动化构建与部署流水线，其核心是根目录下的 `build.py` 脚本。
+
+### 12.1 核心组件
+*   **`build.py`**: 自动化主脚本，负责驱动整个流程。
+*   **`cicd.yaml`**: 流水线配置文件，用于定义版本号、部署目标服务器信息、打包参数等。
+
+### 12.2 自动化流程
+运行 `python build.py` 后，脚本将自动执行以下端到端(End-to-End)任务：
+1.  **读取配置**: 解析 `cicd.yaml` 获取当前版本号和部署配置。
+2.  **Nuitka 编译**: 调用 Nuitka 将 `app.py` 打包为高性能的单文件可执行程序。
+3.  **版本化命名**: 根据当前版本号，将编译产物重命名（例如 `MinecraftFRP_0.5.0.exe`）。
+4.  **生成清单**:
+    *   自动计算可执行文件的 **SHA256** 哈希值，用于客户端安全校验。
+    *   自动获取当前的 **Git Commit Hash**。
+    *   将版本号、Git Hash、SHA256等信息组装成 `version.json` 文件。
+5.  **安全部署 (可选)**:
+    *   脚本会交互式地询问是否部署。
+    *   如果确认，会**安全地提示输入SSH密码**（密码仅在内存中，不保存）。
+    *   通过 SFTP 将编译好的 `.exe` 文件和 `version.json` 文件上传到`cicd.yaml`中指定的服务器路径。
+6.  **版本递增**: 部署成功或选择不部署后，脚本会自动将 `cicd.yaml` 中的补丁版本号加一，为下一次构建做准备。
+
+### 12.3 如何使用
+确保已安装所有 `requirements.txt` 中的依赖后，在项目根目录的虚拟环境中执行：
+```shell
+python build.py
+```

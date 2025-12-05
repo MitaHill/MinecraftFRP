@@ -1,15 +1,27 @@
+import tempfile
+import os
+import sys
+import subprocess
 from PySide6.QtCore import QMutex, QTimer
-from PySide6.QtWidgets import QWidget
+from PySide6.QtWidgets import QWidget, QMessageBox
 from PySide6.QtGui import QCloseEvent
+
+from packaging.version import parse as parse_version
 
 # Core Imports
 from src.core.ServerManager import ServerManager
+from src.core.DownloadThread import DownloadThread
+from src._version import __version__ as APP_VERSION
+from src.utils.Crypto import calculate_sha256
+from src.utils.PathUtils import get_resource_path
 from src.gui.main_window.Initialization import pre_ui_initialize, post_ui_initialize
 from src.gui.main_window.UiSetup import setup_main_window_ui
 from src.gui.main_window.Lifecycle import handle_close_event
+from src.gui.dialogs.UpdateDialogs import UpdateDownloadDialog
 
 # Feature/Action Imports
-from src.gui.main_window.Threads import start_lan_poller, load_ping_values, update_server_combo, start_server_list_update
+from src.gui.main_window.Threads import (start_lan_poller, load_ping_values, update_server_combo, 
+                                       start_server_list_update, start_update_checker)
 from src.gui.main_window.Handlers import (set_port, start_map, copy_link, log_message,
                                           on_auto_mapping_changed, on_dark_mode_changed, on_server_changed)
 from src.gui.main_window.Actions import open_help_browser, open_server_management_dialog
@@ -25,67 +37,167 @@ class PortMappingApp(QWidget):
         super().__init__()
         PortMappingApp.inst = self
         
-        # --- 极简属性初始化，确保UI骨架能建立 ---
-        self.SERVERS = servers  # 初始为空
+        # --- 属性初始化 ---
+        self.SERVERS = servers
         self.th = None
         self.lan_poller = None
         self.server_update_thread = None
+        self.update_checker_thread = None
+        self.download_thread = None
         self.log_trimmer = None
         self.ping_thread = None
         self.app_mutex = QMutex()
         self.is_closing = False
+        self.current_update_info = None # 用于存储当前更新的元数据
         
-        # 为UI设置提供临时的假数据
         self.auto_mapping_enabled = False
         self.dark_mode_override = False
         self.force_dark_mode = False
         self.app_config = {"settings": {}}
         
-        # --- 仅创建UI骨架 ---
         setup_main_window_ui(self, self.SERVERS)
-        
-        # --- 延迟执行所有耗时操作 ---
         QTimer.singleShot(50, self.deferred_initialization)
 
     def deferred_initialization(self):
         """延迟初始化：在窗口显示后执行所有耗时操作"""
         logger.info("执行延迟初始化...")
-        
+
         # 1. 加载配置 (同步IO)
         pre_ui_initialize(self)
-        
+
         # 2. 加载本地服务器列表 (同步IO)
         self.server_manager = ServerManager()
         self.SERVERS = self.server_manager.get_servers()
-        
+
         # 3. 用初始数据填充UI
         self.mapping_tab.update_server_list(self.SERVERS)
-        
+
         # 4. 执行UI创建后的其他初始化 (同步IO)
         post_ui_initialize(self)
-        
+
         # 5. 启动所有后台更新线程 (异步)
         start_lan_poller(self)
         start_server_list_update(self)
+        start_update_checker(self) # <-- 启动更新检查
         logger.info("延迟初始化完成。")
 
-    # --- 生命周期事件 ---
-    def closeEvent(self, event: QCloseEvent):
-        handle_close_event(self, event)
-
-    # --- 线程/异步回调 ---
-    def onFrpcTerminated(self):
-        self.th = None
-
-    def onLANPollerTerminated(self):
-        self.lan_poller = None
-
+    # --- 生命周期与回调 ---
+    def closeEvent(self, event: QCloseEvent): handle_close_event(self, event)
+    def onFrpcTerminated(self): self.th = None
+    def onLANPollerTerminated(self): self.lan_poller = None
     def on_servers_updated(self, new_servers):
-        """后台线程更新服务器列表后的回调"""
         self.log("服务器列表已从网络更新。")
         self.SERVERS = new_servers
-        self.mapping_tab.update_server_list(new_servers)
-        self.load_ping_values()  # 用新的列表进行测速
+        self.mapping_tab.update_server_list(self.SERVERS)
+        self.load_ping_values()
+        
+    def on_update_info_received(self, version_info):
+        """后台线程获取到更新信息后的回调"""
+        try:
+            server_version = parse_version(version_info.get("version", "0.0.0"))
+            local_version = parse_version(APP_VERSION)
+            logger.info(f"本地版本: {local_version}, 服务器版本: {server_version}")
+
+            if server_version > local_version:
+                self.log(f"检测到新版本: {server_version}, 当前版本: {local_version}。即将提示用户...")
+                release_notes = version_info.get("release_notes", "无更新说明。")
+                msg_box = QMessageBox(self); msg_box.setIcon(QMessageBox.Information)
+                msg_box.setWindowTitle("发现新版本"); msg_box.setText(f"发现新版本 {server_version}！")
+                msg_box.setInformativeText(f"<b>更新日志:</b><br><pre>{release_notes}</pre><br>是否立即下载并更新？")
+                update_button = msg_box.addButton("立即更新", QMessageBox.AcceptRole)
+                later_button = msg_box.addButton("稍后提醒", QMessageBox.RejectRole)
+                msg_box.exec()
+                if msg_box.clickedButton() == update_button:
+                    self.start_download(version_info)
+                else:
+                    self.log("用户选择稍后更新。")
+        except Exception as e:
+            logger.error(f"处理更新信息时出错: {e}")
+
+    def start_download(self, version_info):
+        """开始下载更新文件。"""
+        self.log("开始下载更新...")
+        self.current_update_info = version_info
+        download_url = version_info.get("download_url")
+        if not download_url:
+            self.log("错误：更新信息中未找到下载地址。", "red"); return
+
+        dialog = UpdateDownloadDialog(self)
+        save_path = os.path.join(tempfile.gettempdir(), f"MinecraftFRP_Update_{version_info['version']}.exe")
+        self.download_thread = DownloadThread(download_url, save_path)
+        dialog.download_thread = self.download_thread
+        
+        self.download_thread.download_progress.connect(dialog.update_progress)
+        self.download_thread.download_finished.connect(self.on_download_finished)
+        self.download_thread.error_occurred.connect(self.on_download_error)
+        
+        self.download_thread.start()
+        dialog.exec()
+
+    def on_download_finished(self, saved_path):
+        """下载完成后的回调，执行校验。"""
+        self.log(f"更新下载完成: {saved_path}", "green")
+        
+        try:
+            expected_hash = self.current_update_info.get("sha256")
+            if not expected_hash:
+                self.log("警告: 版本信息中未提供SHA256哈希值，跳过文件校验。", "orange")
+                self.execute_update(saved_path)
+                return
+
+            self.log("正在校验文件完整性...")
+            actual_hash = calculate_sha256(saved_path)
+            
+            if actual_hash.lower() == expected_hash.lower():
+                self.log("文件校验成功！", "green")
+                self.execute_update(saved_path)
+            else:
+                logger.error(f"文件校验失败！预期哈希: {expected_hash}, 实际哈希: {actual_hash}")
+                self.on_download_error("文件校验失败！文件可能已损坏或被篡改。")
+                os.remove(saved_path)
+                
+        except Exception as e:
+            self.on_download_error(f"文件校验过程中发生错误: {e}")
+
+    def execute_update(self, downloaded_path):
+        """释放并执行更新程序。"""
+        self.log("准备执行更新...", "cyan")
+        try:
+            updater_path_in_exe = get_resource_path("updater.exe")
+            
+            updater_temp_path = os.path.join(tempfile.gettempdir(), "mcfrp_updater.exe")
+            with open(updater_path_in_exe, "rb") as f_in:
+                with open(updater_temp_path, "wb") as f_out:
+                    f_out.write(f_in.read())
+            
+            os.chmod(updater_temp_path, 0o755)
+
+            pid = str(os.getpid())
+            current_exe_path = os.path.abspath(sys.argv[0])
+            log_dir_path = os.path.join(os.path.dirname(current_exe_path), "logs")
+
+            self.log("启动更新进程，本程序即将退出。")
+            DETACHED_PROCESS = 0x00000008
+            
+            args = [updater_temp_path, pid, current_exe_path, downloaded_path, log_dir_path]
+            logger.info(f"启动更新器，参数: {args}")
+
+            subprocess.Popen(
+                args,
+                creationflags=DETACHED_PROCESS,
+                close_fds=True
+            )
+            
+            self.close()
+
+        except Exception as e:
+            logger.error(f"启动更新程序时发生致命错误: {e}")
+            self.on_download_error(f"执行更新时出错: {e}")
+
+    def on_download_error(self, error_message):
+        """下载失败后的回调。"""
+        self.log(f"下载失败: {error_message}", "red")
+        QMessageBox.critical(self, "下载失败", error_message)
 
     def update_ad(self):
         ad = self.ad_manager.get_next_ad()
@@ -94,35 +206,14 @@ class PortMappingApp(QWidget):
         self.mapping_tab.ad_label.setText(text)
 
     # --- 信号/事件连接的代理方法 ---
-    def set_port(self, port):
-        set_port(self, port)
-
-    def start_map(self):
-        start_map(self)
-
-    def copy_link(self):
-        copy_link(self)
-        
-    def update_server_combo(self, results):
-        update_server_combo(self, results)
-
-    def on_auto_mapping_changed(self, state):
-        on_auto_mapping_changed(self, state)
-
-    def on_dark_mode_changed(self, state):
-        on_dark_mode_changed(self, state)
-        
-    def on_server_changed(self, text):
-        on_server_changed(self, text)
-        
-    def open_server_management(self):
-        open_server_management_dialog(self)
-
-    def start_web_browser(self):
-        open_help_browser(self)
-        
-    def load_ping_values(self):
-        load_ping_values(self)
-        
-    def log(self, message, color=None):
-        log_message(self, message, color)
+    def set_port(self, port): set_port(self, port)
+    def start_map(self): start_map(self)
+    def copy_link(self): copy_link(self)
+    def update_server_combo(self, results): update_server_combo(self, results)
+    def on_auto_mapping_changed(self, state): on_auto_mapping_changed(self, state)
+    def on_dark_mode_changed(self, state): on_dark_mode_changed(self, state)
+    def on_server_changed(self, text): on_server_changed(self, text)
+    def open_server_management(self): open_server_management_dialog(self)
+    def start_web_browser(self): open_help_browser(self)
+    def load_ping_values(self): load_ping_values(self)
+    def log(self, message, color=None): log_message(self, message, color)

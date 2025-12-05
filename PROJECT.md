@@ -69,24 +69,25 @@
 *   [x] 核心配置加密存储与动态加载 (Anti-Cracking)
 *   [x] 完整的单文件打包 (内置 frpc, tracert, logo)
 *   [x] 基于 Git 版本号的自动化构建流程
+*   [x] **客户端自动更新功能**
+    *   [x] **检查与下载**:
+        *   [x] 在主程序启动的后台线程中，从服务器异步获取 `version.json`。
+        *   [x] 比较本地版本与服务器版本，若有更新则弹出提示对话框，并显示更新日志。
+        *   [x] 用户确认后，在后台线程下载新版本程序，并可显示下载进度。
+        *   [x] 下载完成后，校验文件的 SHA256 哈希值，确保文件完整与安全。
+    *   [x] **执行与替换**:
+        *   [x] 创建一个独立的 `updater.py` 脚本，其唯一职责是执行文件替换和重启操作。
+        *   [x] `build.py` 脚本增加新逻辑：先将 `updater.py` 打包成 `updater.exe`。
+        *   [x] `build.py` 在打包主程序时，将 `updater.exe` 作为二进制资源嵌入。
+        *   [x] 主程序在校验下载成功后，从自身资源中释放 `updater.exe` 到临时目录。
+        *   [x] 主程序启动 `updater.exe`（通过命令行参数传递新/旧文件路径及主进程ID），然后完全退出。
+        *   [x] `updater.exe` 等待主进程结束后，执行文件覆盖，并重新启动新版主程序。
 
 ### 待开发/优化计划
 *   [ ] 进一步完善异常处理机制
 *   [ ] 优化多线程 Ping 测速性能
 *   [ ] 支持更多类型的 FRP 配置选项
-*   [ ] **客户端自动更新功能**
-    *   [ ] **检查与下载**:
-        *   [ ] 在主程序启动的后台线程中，从服务器异步获取 `version.json`。
-        *   [ ] 比较本地版本与服务器版本，若有更新则弹出提示对话框，并显示更新日志。
-        *   [ ] 用户确认后，在后台线程下载新版本程序，并可显示下载进度。
-        *   [ ] 下载完成后，校验文件的 SHA256 哈希值，确保文件完整与安全。
-    *   [ ] **执行与替换**:
-        *   [ ] 创建一个独立的 `updater.py` 脚本，其唯一职责是执行文件替换和重启操作。
-        *   [ ] `build.py` 脚本增加新逻辑：先将 `updater.py` 打包成 `updater.exe`。
-        *   [ ] `build.py` 在打包主程序时，将 `updater.exe` 作为二进制资源嵌入。
-        *   [ ] 主程序在校验下载成功后，从自身资源中释放 `updater.exe` 到临时目录。
-        *   [ ] 主程序启动 `updater.exe`（通过命令行参数传递新/旧文件路径及主进程ID），然后完全退出。
-        *   [ ] `updater.exe` 等待主进程结束后，执行文件覆盖，并重新启动新版主程序。
+
 
 ## 5. 目录结构
 
@@ -236,7 +237,8 @@ MinecraftFRP/
 | 2025-11-28 | `fix` | 修复 MainWindow.py 语法错误 | `a287bf6` (refactor/init-structure) |
 | 2025-11-28 | `fix` | 修复 GUI 重构后的 ImportError 和 SyntaxError | `2dd855d` (refactor/init-structure) |
 | 2025-11-28 | `refactor` | 深度模块化 GUI 代码并修复初始化错误 | `3bd1949` (refactor/init-structure) |
-| 2025-11-28 | `chore` | 执行正式打包构建 (PyInstaller) | `3bd1949` (refactor/init-structure) |
+| 2025-12-06 | `feat`     | 实现完整的客户端自动更新与自动化部署流水线 | `4d4950b` (refactor/init-structure) |
+| 2025-11-28 | `chore`    | 执行正式打包构建 (PyInstaller)              | `3bd1949` (refactor/init-structure) |
 
 ## 12. 自动化构建与部署 (CI/CD)
 

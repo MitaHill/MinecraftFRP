@@ -105,6 +105,7 @@ def main():
         print(f"ERROR: Could not load cicd.yaml: {e}"); sys.exit(1)
 
     ssh_user, ssh_pass, deploy_choice = None, None, 'n'
+    fast_build_choice = input("Enable fast build mode (faster compile, slower exe)? (y/n): ").lower().strip()
     deploy_choice = input("Will this run include deployment to SSH server? (y/n): ").lower().strip()
     if deploy_choice == 'y':
         default_user = config.get('ssh', {}).get('user', '')
@@ -117,6 +118,11 @@ def main():
     nuitka_cache_dir = os.path.join(config['nuitka']['output_dir'], ".nuitka-cache")
     print(f"OK: Nuitka cache directory set to: {nuitka_cache_dir}")
 
+    # --- Common Nuitka options ---
+    lto_option = ["--lto=no"] if fast_build_choice == 'y' else []
+    if lto_option:
+        print("\nINFO: Fast build mode enabled. Executable will be less optimized.")
+
     # --- Stage 1: Build Updater ---
     updater_build_dir = os.path.join(config['nuitka']['output_dir'], "temp_updater")
     updater_exe_path = os.path.join(updater_build_dir, "updater.exe")
@@ -128,7 +134,7 @@ def main():
         "--show-progress",
         "--show-scons",
         "--assume-yes-for-downloads"
-    ]
+    ] + lto_option
     if run_nuitka_build(python_exe, "src/tools/updater.py", updater_build_dir, updater_options, nuitka_cache_dir) != 0:
         print("\n" + "="*80); print(" BUILD FAILED: Updater compilation failed."); print("="*80); sys.exit(1)
     print(f"\nOK: Updater built successfully at {updater_exe_path}")
@@ -159,7 +165,7 @@ def main():
         "--assume-yes-for-downloads",
         "--show-progress",
         "--show-scons"
-    ]
+    ] + lto_option
     if run_nuitka_build(python_exe, "app.py", main_app_build_dir, main_app_options, nuitka_cache_dir) != 0:
         print("\n" + "="*80); print(" BUILD FAILED: Main application compilation failed."); print("="*80); sys.exit(1)
     print("\nOK: Main application built successfully.")

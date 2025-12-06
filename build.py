@@ -124,7 +124,10 @@ def main():
         "--onefile", 
         "--windows-console-mode=force", 
         "--output-filename=updater.exe",
-        "--enable-plugin=tk-inter"
+        "--enable-plugin=tk-inter",
+        "--show-progress",
+        "--show-scons",
+        "--assume-yes-for-downloads"
     ]
     if run_nuitka_build(python_exe, "src/tools/updater.py", updater_build_dir, updater_options, nuitka_cache_dir) != 0:
         print("\n" + "="*80); print(" BUILD FAILED: Updater compilation failed."); print("="*80); sys.exit(1)
@@ -153,7 +156,9 @@ def main():
         "--include-data-file=tracert_gui.exe=tracert_gui.exe",
         "--include-data-file=logo.ico=logo.ico",
         f"--include-data-file={updater_exe_path}=updater.exe",
-        "--assume-yes-for-downloads"
+        "--assume-yes-for-downloads",
+        "--show-progress",
+        "--show-scons"
     ]
     if run_nuitka_build(python_exe, "app.py", main_app_build_dir, main_app_options, nuitka_cache_dir) != 0:
         print("\n" + "="*80); print(" BUILD FAILED: Main application compilation failed."); print("="*80); sys.exit(1)

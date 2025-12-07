@@ -3,7 +3,6 @@ import sys
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QMessageBox
 
-from src.utils.AdManager import AdManager
 from src.utils.PathUtils import get_resource_path
 from src.core.ConfigManager import ConfigManager
 from src.core.YamlConfig import YamlConfigManager, DEFAULT_APP_CONFIG
@@ -30,7 +29,6 @@ def post_ui_initialize(window):
 def initialize_managers(window):
     """初始化核心管理器"""
     window.config_manager = ConfigManager()
-    window.ad_manager = AdManager()
     window.yaml_config = YamlConfigManager()
 
 def load_configuration(window):
@@ -43,10 +41,6 @@ def load_configuration(window):
 
 def initialize_timers(window):
     """初始化所有定时器"""
-    window.ad_timer = QTimer(window)
-    window.ad_timer.timeout.connect(window.update_ad)
-    window.ad_timer.start(3000)
-    
     window.ping_timer = QTimer(window)
     window.ping_timer.timeout.connect(lambda: window.load_ping_values())
     window.ping_timer.start(3000)

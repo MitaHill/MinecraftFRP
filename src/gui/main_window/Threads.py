@@ -4,7 +4,6 @@ from src.core.PingThread import PingThread
 from src.network.MinecraftLan import MinecraftLANPoller
 from src.network.PingUtils import save_ping_data
 from src.core.ServerUpdateThread import ServerUpdateThread
-from src.core.UpdateCheckThread import UpdateCheckThread
 from src.utils.LogManager import get_logger
 
 logger = get_logger()
@@ -39,13 +38,6 @@ def start_server_list_update(window):
     window.server_update_thread = ServerUpdateThread()
     window.server_update_thread.servers_updated.connect(window.on_servers_updated)
     window.server_update_thread.start()
-
-def start_update_checker(window):
-    """启动后台线程，检查应用更新"""
-    window.update_checker_thread = UpdateCheckThread()
-    window.update_checker_thread.update_info_fetched.connect(window.on_update_info_received)
-    window.update_checker_thread.error_occurred.connect(window.log)
-    window.update_checker_thread.start()
 
 def update_server_combo(window, results):
     """使用ping结果更新服务器下拉列表"""

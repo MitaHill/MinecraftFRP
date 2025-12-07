@@ -6,7 +6,6 @@ def handle_close_event(window, event):
     window.is_closing = True
     
     # 停止所有定时器
-    window.ad_timer.stop()
     window.ping_timer.stop()
     
     # 停止所有正在运行的线程

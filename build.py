@@ -6,6 +6,7 @@ import hashlib
 import json
 import getpass
 from src.utils.Crypto import calculate_sha256
+from src.utils.HttpManager import fetch_url_content
 try:
     import paramiko
 except ImportError:
@@ -39,6 +40,66 @@ def run_command(command, cwd=None, cache_dir=None):
             print(output.strip(), flush=True)
     rc = process.poll()
     return rc
+
+def get_release_notes_from_git(version_url):
+    """
+    Fetches commit messages from Git to generate release notes.
+    It prioritizes fetching the git_hash from the live version.json.
+    """
+    print("\nINFO: Generating release notes from Git history...")
+    log_range = None
+    
+    # --- Primary Strategy: Fetch from live version.json ---
+    try:
+        print(f"INFO: Attempting to fetch live version info from {version_url}")
+        content = fetch_url_content(version_url, timeout=5)
+        live_version_data = json.loads(content)
+        server_git_hash = live_version_data.get("git_hash")
+        
+        if server_git_hash:
+            print(f"OK: Found server git_hash: {server_git_hash}")
+            log_range = f"{server_git_hash}..HEAD"
+        else:
+            print("WARNING: 'git_hash' not found in live version.json. Proceeding to fallback strategy.")
+            
+    except Exception as e:
+        print(f"WARNING: Could not fetch or parse live version.json: {e}. Proceeding to fallback strategy.")
+
+    # --- Fallback Strategy 1: Use latest Git tag ---
+    if not log_range:
+        try:
+            latest_tag = subprocess.check_output(
+                ['git', 'describe', '--tags', '--abbrev=0'],
+                stderr=subprocess.DEVNULL
+            ).decode('ascii').strip()
+            print(f"OK: Fallback - Found latest tag: {latest_tag}")
+            log_range = f"{latest_tag}..HEAD"
+        except subprocess.CalledProcessError:
+            print("WARNING: Fallback - No Git tags found.")
+
+    # --- Fallback Strategy 2: Use last 5 commits ---
+    if not log_range:
+        print("WARNING: Fallback - Using last 5 commits for release notes.")
+        log_range = "HEAD~5..HEAD"
+
+    # --- Generate the commit messages ---
+    try:
+        print(f"INFO: Generating logs for range: '{log_range}'")
+        commit_messages = subprocess.check_output(
+            ['git', 'log', log_range, '--pretty=format:* %s'],
+            stderr=subprocess.DEVNULL
+        ).decode('utf-8').strip()
+        
+        if not commit_messages:
+            print("WARNING: No new commits found in the specified range. Using a default message.")
+            return "No new changes in this version."
+            
+        print("OK: Successfully generated release notes.")
+        return commit_messages
+        
+    except Exception as e:
+        print(f"ERROR: Failed to generate release notes from Git: {e}")
+        return "Failed to generate release notes."
 
 def upload_artifacts(ssh_config, user, password, local_exe_path, local_version_path):
     """Connects to SSH and uploads build artifacts with optimized parameters."""
@@ -128,12 +189,13 @@ def main():
     updater_exe_path = os.path.join(updater_build_dir, "updater.exe")
     updater_options = [
         "--onefile", 
-        "--windows-console-mode=force", 
+        "--windows-disable-console", 
         "--output-filename=updater.exe",
         "--enable-plugin=tk-inter",
         "--show-progress",
         "--show-scons",
-        "--assume-yes-for-downloads"
+        "--assume-yes-for-downloads",
+        "--jobs=20"
     ] + lto_option
     if run_nuitka_build(python_exe, "src/tools/updater.py", updater_build_dir, updater_options, nuitka_cache_dir) != 0:
         print("\n" + "="*80); print(" BUILD FAILED: Updater compilation failed."); print("="*80); sys.exit(1)
@@ -164,7 +226,8 @@ def main():
         f"--include-data-file={updater_exe_path}=updater.exe",
         "--assume-yes-for-downloads",
         "--show-progress",
-        "--show-scons"
+        "--show-scons",
+        "--jobs=20"
     ] + lto_option
     if run_nuitka_build(python_exe, "app.py", main_app_build_dir, main_app_options, nuitka_cache_dir) != 0:
         print("\n" + "="*80); print(" BUILD FAILED: Main application compilation failed."); print("="*80); sys.exit(1)
@@ -180,12 +243,19 @@ def main():
     try:
         git_hash = subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD']).decode('ascii').strip()
     except Exception: git_hash = "unknown"
+    
+    version_url = "https://z.clash.ink/chfs/shared/MinecraftFRP/Data/version.json"
+    release_notes = get_release_notes_from_git(version_url)
+    
     version_data = {
-        "version": current_version, "git_hash": git_hash, "release_notes": "Automated build.",
-        "download_url": "https://z.clash.ink/chfs/shared/MinecraftFRP/lastet/MinecraftFRP.exe", "sha256": exe_sha256
+        "version": current_version, 
+        "git_hash": git_hash, 
+        "release_notes": release_notes,
+        "download_url": "https://z.clash.ink/chfs/shared/MinecraftFRP/lastet/MinecraftFRP.exe",
+        "sha256": exe_sha256
     }
     version_json_path = os.path.join(main_app_build_dir, "version.json")
-    with open(version_json_path, 'w', encoding='utf-8') as f: json.dump(version_data, f, indent=4)
+    with open(version_json_path, 'w', encoding='utf-8') as f: json.dump(version_data, f, indent=4, ensure_ascii=False)
     print(f"OK: Generated version.json at {version_json_path}")
     
     deployment_successful = False

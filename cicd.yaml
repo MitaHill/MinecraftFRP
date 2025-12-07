@@ -4,8 +4,8 @@ ssh:
   exe_path: /root/chfs/share/MinecraftFRP/lastet/MinecraftFRP.exe
   host: clash.ink
   user: root
-  version_json_path: /root/chfs/share/MinecraftFRP/version.json
+  version_json_path: /root/chfs/share/MinecraftFRP/Data/version.json
 version:
   major: 0
   minor: 5
-  patch: 7
+  patch: 21

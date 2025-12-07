@@ -1,8 +1,7 @@
 import subprocess
 import re
-import requests
-import json
 import os
+from src.utils.HttpManager import fetch_url_content
 from src.utils.LogManager import get_logger
 
 logger = get_logger()
@@ -50,13 +49,10 @@ def load_ping_data(filename="config/ping_data.yaml"):
 # 下载JSON文件
 def download_json(url, local_path):
     try:
-        response = requests.get(url, timeout=5)
-        if response.status_code == 200:
-            with open(local_path, 'w', encoding='utf-8') as f:
-                f.write(response.text)
-            return True
-        else:
-            return False
+        content = fetch_url_content(url)
+        with open(local_path, 'w', encoding='utf-8') as f:
+            f.write(content)
+        return True
     except Exception as e:
         logger.error(f"下载JSON文件失败: {e}")
         return False

@@ -1,5 +1,6 @@
 from PySide6.QtCore import QThread, Signal
-import requests
+import urllib.request
+import ssl
 from src.utils.LogManager import get_logger
 
 logger = get_logger()
@@ -7,6 +8,7 @@ logger = get_logger()
 class DownloadThread(QThread):
     """
     在后台线程下载文件，并报告进度。
+    使用 urllib 以获得更好的兼容性。
     """
     download_progress = Signal(int, int)  # (bytes_received, total_bytes)
     download_finished = Signal(str)       # (filepath)
@@ -24,17 +26,22 @@ class DownloadThread(QThread):
         """
         logger.info(f"下载线程启动，URL: {self.url}, 保存路径: {self.save_path}")
         try:
-            with requests.get(self.url, stream=True, timeout=30) as r:
-                r.raise_for_status()
-                total_size = int(r.headers.get('content-length', 0))
+            # 创建不验证证书的 SSL 上下文
+            unverified_context = ssl._create_unverified_context()
+            
+            with urllib.request.urlopen(self.url, context=unverified_context, timeout=30) as response:
+                if response.getcode() != 200:
+                    raise urllib.error.URLError(f"服务器返回状态码 {response.getcode()}")
+
+                total_size = int(response.headers.get('content-length', 0))
                 bytes_downloaded = 0
-                
+                chunk_size = 8192
+
                 with open(self.save_path, 'wb') as f:
-                    for chunk in r.iter_content(chunk_size=8192):
-                        if not self.is_running:
-                            logger.info("下载被用户取消。")
-                            self.error_occurred.emit("下载已取消。")
-                            return
+                    while self.is_running:
+                        chunk = response.read(chunk_size)
+                        if not chunk:
+                            break
                         
                         f.write(chunk)
                         bytes_downloaded += len(chunk)
@@ -44,13 +51,12 @@ class DownloadThread(QThread):
             if self.is_running:
                 logger.info(f"文件下载成功: {self.save_path}")
                 self.download_finished.emit(self.save_path)
+            else:
+                logger.info("下载被用户取消。")
+                self.error_occurred.emit("下载已取消。")
 
-        except requests.exceptions.RequestException as e:
-            error_message = f"下载更新时发生网络错误: {e}"
-            logger.error(error_message)
-            self.error_occurred.emit(error_message)
         except Exception as e:
-            error_message = f"下载更新时发生未知错误: {e}"
+            error_message = f"下载更新时发生错误: {e}"
             logger.error(error_message)
             self.error_occurred.emit(error_message)
 

@@ -9,6 +9,7 @@ import tkinter as tk
 from tkinter import ttk, scrolledtext
 import threading
 import queue
+import psutil
 
 class WorkerThread(threading.Thread):
     def __init__(self, message_queue, args):
@@ -17,147 +18,126 @@ class WorkerThread(threading.Thread):
         self.args = args
 
     def run(self):
-        pid, old_exe, new_exe, log_dir = self.args
-        self.log_and_put(f"更新工作线程已启动。")
-        self.log_and_put(f"等待进程 PID: {pid}")
-        self.log_and_put(f"旧执行文件: {old_exe}")
-        self.log_and_put(f"新执行文件: {new_exe}")
+        pid_str, old_exe, new_exe, log_dir = self.args
+        pid = int(pid_str)
+        self.log_and_put("Updater worker thread started.")
+        self.log_and_put(f"Waiting for process PID: {pid}")
+        self.log_and_put(f"Old executable: {old_exe}")
+        self.log_and_put(f"New executable: {new_exe}")
 
-        if not self._wait_for_process_exit(pid):
-            return # Stop on failure
+        if not self._wait_for_process_exit(pid, old_exe):
+            return
 
         if not self._replace_files(old_exe, new_exe):
-            return # Stop on failure
+            return
 
         self._relaunch_app(old_exe)
         
-        self.put_status("更新完成！本窗口将在3秒后关闭。")
-        self.log_and_put("更新流程结束。")
+        self.put_status("Update complete! This window will close in 3 seconds.")
+        self.log_and_put("Update process finished.")
         self.queue.put(("CLOSE", ""))
 
-    def _is_pid_running(self, pid):
-        """Check if a process with the given PID is running on Windows."""
-        try:
-            # Use tasklist command to check for the PID
-            command = f'tasklist /FI "PID eq {pid}"'
-            output = subprocess.check_output(command, shell=True, text=True, stderr=subprocess.DEVNULL)
-            # If the output contains the pid, the process is running.
-            return pid in output
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            # If command fails or not found, assume process is not running or we can't check.
-            return False
-
-    def _wait_for_process_exit(self, pid):
-        self.put_status(f"正在等待主程序 (PID: {pid}) 关闭...")
+    def _wait_for_process_exit(self, pid, old_exe):
+        self.put_status(f"Waiting for the main application (PID: {pid}) to close...")
         self.put_progress(10)
-        wait_time = 30  # 30 seconds timeout
+        wait_time = 30
         wait_start = time.time()
 
-        # First, wait for the PID to disappear
-        while self._is_pid_running(pid):
+        while psutil.pid_exists(pid):
             if time.time() - wait_start > wait_time:
-                self.log_and_put(f"等待进程 {pid} 关闭超时！", level="error")
-                self.put_status("错误：主程序关闭超时！")
+                self.log_and_put(f"Timeout waiting for process {pid} to exit!", level="error")
+                self.put_status("Error: Main application timed out while closing!")
                 return False
-            self.log_and_put(f"等待主程序(PID: {pid})完全退出...")
+            self.log_and_put(f"Waiting for main application (PID: {pid}) to exit completely...")
             time.sleep(1)
             self.put_progress(10 + int(20 * (time.time() - wait_start) / wait_time))
 
-        self.log_and_put(f"进程 {pid} 已退出。确认文件锁已释放...")
+        self.log_and_put(f"Process {pid} has exited. Confirming file lock release...")
 
-        # Then, confirm the file lock is released
-        wait_start = time.time() # Reset timer for file lock
+        wait_start = time.time()
         while time.time() - wait_start < wait_time:
             try:
-                # Try to open for writing to check the lock
                 with open(old_exe, "a+"):
                     pass
-                self.log_and_put("文件锁已释放。")
+                self.log_and_put("File lock has been released.")
                 self.put_progress(40)
                 return True
             except IOError:
-                self.log_and_put("等待文件锁释放...")
+                self.log_and_put("Waiting for file lock to be released...")
                 time.sleep(1)
             except FileNotFoundError:
-                self.log_and_put("旧文件未找到，直接继续。")
+                self.log_and_put("Old file not found, proceeding directly.")
                 self.put_progress(40)
                 return True
 
-        self.log_and_put("等待文件锁释放超时！", level="error")
-        self.put_status("错误：文件锁超时！")
+        self.log_and_put("Timeout waiting for file lock release!", level="error")
+        self.put_status("Error: File lock timeout!")
         return False
         
     def _replace_files(self, old_exe, new_exe):
-        self.put_status("正在替换文件...")
-        self.log_and_put(f"开始文件替换流程...")
+        self.put_status("Replacing files...")
+        self.log_and_put("Starting file replacement process...")
         self.put_progress(50)
 
         bak_exe = old_exe + ".bak"
 
-        # 1. Backup old file
         if os.path.exists(old_exe):
-            self.log_and_put(f"备份 {old_exe} -> {bak_exe}")
+            self.log_and_put(f"Backing up {old_exe} -> {bak_exe}")
             try:
                 shutil.move(old_exe, bak_exe)
             except Exception as e:
-                self.log_and_put(f"备份失败: {e}", level="error")
-                self.put_status("错误：备份旧版本失败！")
+                self.log_and_put(f"Backup failed: {e}", level="error")
+                self.put_status("Error: Failed to back up the old version!")
                 return False
         
         self.put_progress(65)
 
-        # 2. Move new file
-        self.log_and_put(f"移动 {new_exe} -> {old_exe}")
+        self.log_and_put(f"Moving {new_exe} -> {old_exe}")
         try:
             shutil.move(new_exe, old_exe)
-            self.log_and_put("文件替换成功。")
+            self.log_and_put("File replacement successful.")
             self.put_progress(80)
         except Exception as e:
-            self.log_and_put(f"文件替换失败: {e}", level="error")
-            self.put_status("错误：无法替换为新版本！")
-            # Attempt to rollback
+            self.log_and_put(f"File replacement failed: {e}", level="error")
+            self.put_status("Error: Could not replace with the new version!")
             if os.path.exists(bak_exe):
-                self.log_and_put("正在尝试回滚...")
+                self.log_and_put("Attempting to roll back...")
                 try:
                     shutil.move(bak_exe, old_exe)
-                    self.log_and_put("回滚成功。")
-                    self.put_status("错误：已回滚至旧版本。")
+                    self.log_and_put("Rollback successful.")
+                    self.put_status("Error: Rolled back to the old version.")
                 except Exception as rollback_e:
-                    self.log_and_put(f"回滚失败: {rollback_e}", level="error")
-                    self.put_status("致命错误：无法恢复旧版本！")
+                    self.log_and_put(f"Rollback failed: {rollback_e}", level="error")
+                    self.put_status("Fatal Error: Could not restore the old version!")
             return False
 
-        # 3. Clean up backup
         if os.path.exists(bak_exe):
-            self.log_and_put(f"清理备份文件 {bak_exe}")
+            self.log_and_put(f"Cleaning up backup file {bak_exe}")
             try:
                 os.remove(bak_exe)
             except Exception as e:
-                self.log_and_put(f"无法删除备份文件 (可忽略): {e}", level="warn")
+                self.log_and_put(f"Could not delete backup file (ignorable): {e}", level="warn")
         
         return True
 
     def _relaunch_app(self, old_exe):
-        self.put_status("正在重启新版本...")
-        self.log_and_put("重启应用程序...")
+        self.put_status("Relaunching the new version...")
+        self.log_and_put("Relaunching application...")
         self.put_progress(90)
         try:
             DETACHED_PROCESS = 0x00000008
             subprocess.Popen([old_exe], creationflags=DETACHED_PROCESS, close_fds=True)
-            self.log_and_put("新版本已成功启动。")
+            self.log_and_put("New version launched successfully.")
             self.put_progress(100)
         except Exception as e:
-            self.log_and_put(f"重启失败: {e}", level="error")
-            self.put_status("错误：自动重启失败！请手动启动。")
+            self.log_and_put(f"Relaunch failed: {e}", level="error")
+            self.put_status("Error: Auto-relaunch failed! Please start it manually.")
             self.queue.put(("SHOW_RESTART_BTN", old_exe))
 
     def log_and_put(self, msg, level="info"):
-        if level == "info":
-            logging.info(msg)
-        elif level == "warn":
-            logging.warning(msg)
-        else:
-            logging.error(msg)
+        if level == "info": logging.info(msg)
+        elif level == "warn": logging.warning(msg)
+        else: logging.error(msg)
         self.queue.put(("LOG", msg))
     
     def put_status(self, msg):
@@ -166,24 +146,21 @@ class WorkerThread(threading.Thread):
     def put_progress(self, value):
         self.queue.put(("PROGRESS", value))
 
-
 class UpdaterGui:
     def __init__(self, root, args):
         self.root = root
         self.args = args
         self.queue = queue.Queue()
 
-        self.root.title("MinecraftFRP 更新程序")
+        self.root.title("MinecraftFRP Updater")
         self.root.geometry("450x300")
         self.root.resizable(False, False)
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
 
-        # Style
         self.style = ttk.Style(self.root)
         self.style.theme_use('vista')
 
-        # Widgets
-        self.status_label = ttk.Label(self.root, text="正在准备更新...", font=("Segoe UI", 12))
+        self.status_label = ttk.Label(self.root, text="Preparing to update...", font=("Segoe UI", 12))
         self.status_label.pack(pady=(10, 5))
 
         self.log_area = scrolledtext.ScrolledText(self.root, wrap=tk.WORD, state='disabled', font=("Segoe UI", 9), height=10)
@@ -192,9 +169,8 @@ class UpdaterGui:
         self.progress = ttk.Progressbar(self.root, orient='horizontal', mode='determinate', length=280)
         self.progress.pack(pady=(5, 10))
         
-        self.manual_restart_btn = ttk.Button(self.root, text="手动启动", command=self.manual_restart)
+        self.manual_restart_btn = ttk.Button(self.root, text="Manual Restart", command=self.manual_restart)
         self.restart_path = ""
-        # The button is hidden by default and will be shown on failure using pack()
 
     def manual_restart(self):
         if self.restart_path and os.path.exists(self.restart_path):
@@ -223,9 +199,9 @@ class UpdaterGui:
                 elif msg_type == "SHOW_RESTART_BTN":
                     self.restart_path = msg_text
                     self.manual_restart_btn.pack(pady=5)
-                    self.progress.pack_forget() # Hide progress bar
+                    self.progress.pack_forget()
                 elif msg_type == "CLOSE":
-                    self.root.after(3000, self.on_close) # Wait 3s before closing
+                    self.root.after(3000, self.on_close)
                     return
         except queue.Empty:
             pass
@@ -235,8 +211,7 @@ class UpdaterGui:
         self.root.destroy()
 
 def setup_logging(log_path):
-    # Use a rotating file handler to keep log sizes in check
-    handler = logging.handlers.RotatingFileHandler(log_path, maxBytes=1024 * 1024, backupCount=2) # 1MB per file, 2 backups
+    handler = logging.handlers.RotatingFileHandler(log_path, maxBytes=1024 * 1024, backupCount=2, encoding='utf-8')
     formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
     handler.setFormatter(formatter)
     
@@ -245,32 +220,38 @@ def setup_logging(log_path):
     logger.addHandler(handler)
 
 def main():
-    if len(sys.argv) != 5:
-        # For GUI display, it's better to show error in a dialog
-        root = tk.Tk()
-        root.withdraw() # Hide main window
-        tk.messagebox.showerror("Updater Error", f"启动参数不足！\n用法: updater.py <pid> <old_exe> <new_exe> <log_dir>")
-        return
-
-    # Setup file logging
-    log_dir = sys.argv[4]
     try:
-        os.makedirs(log_dir, exist_ok=True)
-        log_file = os.path.join(log_dir, "updater.log")
-        setup_logging(log_file)
-    except Exception as e:
-        root = tk.Tk()
-        root.withdraw()
-        tk.messagebox.showerror("Updater Logging Error", f"无法设置日志文件于: {log_dir}\n错误: {e}")
-        # Continue without file logging if it fails
+        if len(sys.argv) != 5:
+            root = tk.Tk()
+            root.withdraw()
+            tk.messagebox.showerror("Updater Error", f"Insufficient arguments!\nUsage: updater.py <pid> <old_exe> <new_exe> <log_dir>")
+            return
 
-    # Setup and run GUI
-    root = tk.Tk()
-    gui = UpdaterGui(root, sys.argv[1:])
-    gui.start_update()
-    root.mainloop()
+        log_dir = sys.argv[4]
+        try:
+            os.makedirs(log_dir, exist_ok=True)
+            log_file = os.path.join(log_dir, "updater.log")
+            setup_logging(log_file)
+        except Exception as e:
+            root = tk.Tk()
+            root.withdraw()
+            tk.messagebox.showerror("Updater Logging Error", f"Could not set up log file at: {log_dir}\nError: {e}")
+
+        root = tk.Tk()
+        gui = UpdaterGui(root, sys.argv[1:])
+        gui.start_update()
+        root.mainloop()
+    except Exception as e:
+        log_path = os.path.join(sys.argv[4] if len(sys.argv) == 5 else '.', 'updater_crash.log')
+        logging.basicConfig(filename=log_path, level=logging.ERROR, filemode='w', encoding='utf-8')
+        logging.exception("Updater encountered a fatal error!")
+        try:
+            root = tk.Tk()
+            root.withdraw()
+            tk.messagebox.showerror("Updater Fatal Error", f"A fatal error occurred in the updater: {e}\nPlease check the updater_crash.log file.")
+        except:
+            pass
 
 if __name__ == "__main__":
-    # Add RotatingFileHandler to the imports
     import logging.handlers
     main()

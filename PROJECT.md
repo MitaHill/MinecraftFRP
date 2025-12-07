@@ -84,6 +84,13 @@
         *   [x] `updater.exe` 等待主进程结束后，执行文件覆盖，并重新启动新版主程序。
 
 ### 待开发/优化计划
+*   [x] **实现启动广告弹窗并重构为统一广告系统**
+    *   [x] 程序启动后，在后台从 `.../ads/ads_index.yaml` 获取统一配置文件。
+    *   [x] 弹窗能展示图片、备注文字，并支持点击图片跳转链接。
+    *   [x] 图片URL由基础路径 (`.../source/`) 和文件名拼接而成。
+    *   [x] 弹窗包含“上一张”/“下一张”按钮，支持用户手动翻页。
+    *   [x] 弹窗能根据配置文件中 `duration` 字段，自动轮播广告。
+    *   [x] 状态栏滚动广告与弹窗广告均由 `ads_index.yaml` 统一控制。
 *   [ ] 进一步完善异常处理机制
 *   [ ] 优化多线程 Ping 测速性能
 *   [ ] 支持更多类型的 FRP 配置选项
@@ -207,7 +214,7 @@ MinecraftFRP/
 
 *   **版本清单与下载地址**:
     *   **版本清单**: 自动更新机制依赖于服务器上的 `version.json` 文件来获取最新版本信息。其固定访问地址为：
-        *   `https://z.clash.ink/chfs/shared/MinecraftFRP/version.json`
+        *   `https://z.clash.ink/chfs/shared/MinecraftFRP/Data/version.json`
     *   **固定下载地址**: 最新版本的 `MinecraftFRP.exe` 程序包将始终可通过以下地址获取：
         *   `https://z.clash.ink/chfs/shared/MinecraftFRP/lastet/MinecraftFRP.exe`
 
@@ -224,6 +231,7 @@ MinecraftFRP/
 
 | 日期 (Date) | 类型 (Type) | 描述 (Description) | Git Hash (Short) / Branch |
 | :--- | :--- | :--- | :--- |
+| 2025-12-07 | `feat` | 实现启动广告弹窗，并重构统一广告系统 | `feat/startup-ad-dialog` |
 | 2025-11-28 | `refactor` | 初始化模块化项目结构，分离核心逻辑与界面 | `87d948f` (refactor/init-structure) |
 | 2025-11-28 | `docs` | 制定并写入项目企划与架构文档，添加 Logs 规则 | `9351384` (refactor/init-structure) |
 | 2025-11-28 | `fix` | 修复 GUI 关闭时的线程安全隐患 (添加 wait()) | `348cafd` (refactor/init-structure) |

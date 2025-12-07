@@ -6,11 +6,10 @@ from PySide6.QtCore import QMutex, QTimer
 from PySide6.QtWidgets import QWidget, QMessageBox
 from PySide6.QtGui import QCloseEvent
 
-from packaging.version import parse as parse_version
-
 # Core Imports
 from src.core.ServerManager import ServerManager
 from src.core.DownloadThread import DownloadThread
+from src.core.UpdateCheckThread import UpdateCheckThread
 from src._version import __version__ as APP_VERSION
 from src.utils.Crypto import calculate_sha256
 from src.utils.PathUtils import get_resource_path
@@ -18,10 +17,12 @@ from src.gui.main_window.Initialization import pre_ui_initialize, post_ui_initia
 from src.gui.main_window.UiSetup import setup_main_window_ui
 from src.gui.main_window.Lifecycle import handle_close_event
 from src.gui.dialogs.UpdateDialogs import UpdateDownloadDialog
+from src.gui.dialogs.AdDialog import AdDialog
+from src.gui.dialogs.AdThread import AdThread
 
 # Feature/Action Imports
 from src.gui.main_window.Threads import (start_lan_poller, load_ping_values, update_server_combo, 
-                                       start_server_list_update, start_update_checker)
+                                       start_server_list_update)
 from src.gui.main_window.Handlers import (set_port, start_map, copy_link, log_message,
                                           on_auto_mapping_changed, on_dark_mode_changed, on_server_changed)
 from src.gui.main_window.Actions import open_help_browser, open_server_management_dialog
@@ -37,7 +38,7 @@ class PortMappingApp(QWidget):
         super().__init__()
         PortMappingApp.inst = self
         
-        # --- 属性初始化 ---
+        # --- Attribute Initialization ---
         self.SERVERS = servers
         self.th = None
         self.lan_poller = None
@@ -46,9 +47,15 @@ class PortMappingApp(QWidget):
         self.download_thread = None
         self.log_trimmer = None
         self.ping_thread = None
+        self.ad_thread = None
         self.app_mutex = QMutex()
         self.is_closing = False
-        self.current_update_info = None # 用于存储当前更新的元数据
+        self.current_update_info = None
+        
+        # Scrolling Ad Attributes
+        self.scrolling_ads = []
+        self.current_scrolling_ad_index = 0
+        self.scrolling_ad_timer = QTimer(self)
         
         self.auto_mapping_enabled = False
         self.dark_mode_override = False
@@ -59,30 +66,75 @@ class PortMappingApp(QWidget):
         QTimer.singleShot(50, self.deferred_initialization)
 
     def deferred_initialization(self):
-        """延迟初始化：在窗口显示后执行所有耗时操作"""
-        logger.info("执行延迟初始化...")
+        """Deferred initialization: executes heavy tasks after the window is shown."""
+        logger.info("Performing deferred initialization...")
 
-        # 1. 加载配置 (同步IO)
         pre_ui_initialize(self)
 
-        # 2. 加载本地服务器列表 (同步IO)
         self.server_manager = ServerManager()
         self.SERVERS = self.server_manager.get_servers()
 
-        # 3. 用初始数据填充UI
         self.mapping_tab.update_server_list(self.SERVERS)
 
-        # 4. 执行UI创建后的其他初始化 (同步IO)
         post_ui_initialize(self)
 
-        # 5. 启动所有后台更新线程 (异步)
         start_lan_poller(self)
         start_server_list_update(self)
-        start_update_checker(self) # <-- 启动更新检查
-        logger.info("延迟初始化完成。")
+        
+        # Setup and start update check thread
+        self.update_checker_thread = UpdateCheckThread(current_version=APP_VERSION)
+        self.update_checker_thread.update_info_fetched.connect(self.show_update_dialog)
+        self.update_checker_thread.error_occurred.connect(self.show_update_error)
+        self.update_checker_thread.up_to_date.connect(self.show_up_to_date_message)
+        self.update_checker_thread.start()
 
-    # --- 生命周期与回调 ---
-    def closeEvent(self, event: QCloseEvent): handle_close_event(self, event)
+        # Setup and start unified ad thread
+        self.ad_thread = AdThread()
+        self.ad_thread.finished.connect(self._on_ads_ready)
+        self.ad_thread.start()
+        
+        logger.info("Deferred initialization complete.")
+
+    def _on_ads_ready(self, ad_data):
+        """
+        Handles the unified ad data once it's fetched and processed by the AdThread.
+        """
+        # Handle popup ads
+        popup_ads = ad_data.get('popup_ads', [])
+        if not self.is_closing and popup_ads:
+            logger.info("弹窗广告资源已就绪，显示弹窗。")
+            dialog = AdDialog(popup_ads, self)
+            dialog.exec()
+            
+        # Handle scrolling ads
+        self.scrolling_ads = ad_data.get('scrolling_ads', [])
+        if not self.is_closing and self.scrolling_ads:
+            logger.info("滚动广告资源已就绪，启动定时器。")
+            self.scrolling_ad_timer.timeout.connect(self._update_scrolling_ad)
+            self.scrolling_ad_timer.start(10000)  # Change ad every 10 seconds
+            self._update_scrolling_ad() # Show the first ad immediately
+
+    def _update_scrolling_ad(self):
+        """Cycles through the scrolling ads and updates the ad label."""
+        if not self.scrolling_ads:
+            self.mapping_tab.ad_label.setText("无广告")
+            return
+            
+        ad = self.scrolling_ads[self.current_scrolling_ad_index]
+        self.current_scrolling_ad_index = (self.current_scrolling_ad_index + 1) % len(self.scrolling_ads)
+        
+        color = "cyan" if self.theme == "dark" else "blue"
+        text = ad.get('text', '...')
+        url = ad.get('url', '#')
+        
+        formatted_text = f'<a href="{url}" style="color:{color}">{text}</a>'
+        self.mapping_tab.ad_label.setText(formatted_text)
+
+    # --- Lifecycle and Callbacks ---
+    def closeEvent(self, event: QCloseEvent):
+        self.scrolling_ad_timer.stop() # Stop the timer on close
+        handle_close_event(self, event)
+        
     def onFrpcTerminated(self): self.th = None
     def onLANPollerTerminated(self): self.lan_poller = None
     def on_servers_updated(self, new_servers):
@@ -91,31 +143,35 @@ class PortMappingApp(QWidget):
         self.mapping_tab.update_server_list(self.SERVERS)
         self.load_ping_values()
         
-    def on_update_info_received(self, version_info):
-        """后台线程获取到更新信息后的回调"""
+    def show_update_dialog(self, version_info):
+        """Shows the update dialog when a new version is found."""
         try:
-            server_version = parse_version(version_info.get("version", "0.0.0"))
-            local_version = parse_version(APP_VERSION)
-            logger.info(f"本地版本: {local_version}, 服务器版本: {server_version}")
-
-            if server_version > local_version:
-                self.log(f"检测到新版本: {server_version}, 当前版本: {local_version}。即将提示用户...")
-                release_notes = version_info.get("release_notes", "无更新说明。")
-                msg_box = QMessageBox(self); msg_box.setIcon(QMessageBox.Information)
-                msg_box.setWindowTitle("发现新版本"); msg_box.setText(f"发现新版本 {server_version}！")
-                msg_box.setInformativeText(f"<b>更新日志:</b><br><pre>{release_notes}</pre><br>是否立即下载并更新？")
-                update_button = msg_box.addButton("立即更新", QMessageBox.AcceptRole)
-                later_button = msg_box.addButton("稍后提醒", QMessageBox.RejectRole)
-                msg_box.exec()
-                if msg_box.clickedButton() == update_button:
-                    self.start_download(version_info)
-                else:
-                    self.log("用户选择稍后更新。")
+            server_version = version_info.get("version", "0.0.0")
+            self.log(f"检测到新版本: {server_version}, 当前版本: {APP_VERSION}。即将提示用户...")
+            release_notes = version_info.get("release_notes", "无更新说明。")
+            msg_box = QMessageBox(self); msg_box.setIcon(QMessageBox.Information)
+            msg_box.setWindowTitle("发现新版本"); msg_box.setText(f"发现新版本 {server_version}！")
+            msg_box.setInformativeText(f"<b>更新日志:</b><br><pre>{release_notes}</pre><br>是否立即下载并更新？")
+            update_button = msg_box.addButton("立即更新", QMessageBox.AcceptRole)
+            later_button = msg_box.addButton("稍后提醒", QMessageBox.RejectRole)
+            msg_box.exec()
+            if msg_box.clickedButton() == update_button:
+                self.start_download(version_info)
+            else:
+                self.log("用户选择稍后更新。")
         except Exception as e:
             logger.error(f"处理更新信息时出错: {e}")
 
+    def show_up_to_date_message(self):
+        """Handles the signal for when the application is already up to date."""
+        self.log("当前已是最新版本。", "green")
+
+    def show_update_error(self, error_message):
+        """Handles the signal for when an error occurs during update check."""
+        self.log(f"检查更新失败: {error_message}", "orange")
+
     def start_download(self, version_info):
-        """开始下载更新文件。"""
+        """Starts downloading the update file."""
         self.log("开始下载更新...")
         self.current_update_info = version_info
         download_url = version_info.get("download_url")
@@ -135,7 +191,7 @@ class PortMappingApp(QWidget):
         dialog.exec()
 
     def on_download_finished(self, saved_path):
-        """下载完成后的回调，执行校验。"""
+        """Callback after download is complete, performs validation."""
         self.log(f"更新下载完成: {saved_path}", "green")
         
         try:
@@ -160,7 +216,7 @@ class PortMappingApp(QWidget):
             self.on_download_error(f"文件校验过程中发生错误: {e}")
 
     def execute_update(self, downloaded_path):
-        """释放并执行更新程序。"""
+        """Releases and executes the updater."""
         self.log("准备执行更新...", "cyan")
         try:
             updater_path_in_exe = get_resource_path("updater.exe")
@@ -195,7 +251,7 @@ class PortMappingApp(QWidget):
             self.on_download_error(f"执行更新时出错: {e}")
 
     def on_download_error(self, error_message):
-        """下载失败后的回调。"""
+        """Callback for download failure."""
         self.log(f"下载失败: {error_message}", "red")
         QMessageBox.critical(self, "下载失败", error_message)
 
@@ -205,7 +261,7 @@ class PortMappingApp(QWidget):
         text = f'<a href="{ad["url"]}" style="color:{color}">{ad["show"]}</a>' if ad else "无广告"
         self.mapping_tab.ad_label.setText(text)
 
-    # --- 信号/事件连接的代理方法 ---
+    # --- Proxy methods for signal/event connections ---
     def set_port(self, port): set_port(self, port)
     def start_map(self): start_map(self)
     def copy_link(self): copy_link(self)

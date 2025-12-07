@@ -1,0 +1,18 @@
+# 这是统一广告索引文件的正确格式范例。
+# 顶层是字典，包含 'popup_ads' 和 'scrolling_ads' 两个列表。
+
+popup_ads:
+  - image: "b_b9da794e70846080d025493be152992f.jpg"
+    url: "https://www.minecraft.net/zh-hans"
+    remark: "欢迎来到Minecraft的世界！"
+    duration: 7
+  - image: "promo_banner_02.png" # 请确保此图片存在于服务器上
+    url: "https://www.minecraft.net/zh-hans/article/minecraft-snapshot-24w03a"
+    remark: "最新快照已发布，快来体验新特性！"
+    duration: 5
+
+scrolling_ads:
+  - text: "这是一个滚动的文字广告，恭喜发财！"
+    url: "https://example.com/promo1"
+  - text: "第二个滚动广告，万事如意！"
+    url: "https://example.com/promo2"

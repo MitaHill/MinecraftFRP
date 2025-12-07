@@ -1,6 +1,5 @@
 import json
-import os
-import requests
+from src.utils.HttpManager import fetch_url_content
 import threading
 from pathlib import Path
 from src.utils.LogManager import get_logger
@@ -25,17 +24,13 @@ class AdManager:
 
     def download_ads(self):
         try:
-            response = requests.get(
-                "https://clash.ink/file/minecraft-frp/ads.json",
-                timeout=5
-            )
-            if response.status_code == 200:
-                with open(self.ads_file, "w", encoding="utf-8") as f:
-                    f.write(response.text)
-                self.parse_ads()
-            else:
-                logger.warning(f"下载ads.json失败，状态码: {response.status_code}")
-                self.try_load_local_ads()
+            content = fetch_url_content("https://z.clash.ink/chfs/shared/MinecraftFRP/Data/ads.json")
+            with open(self.ads_file, "w", encoding="utf-8") as f:
+                f.write(content)
+            
+            if self.parse_ads():
+                logger.info("成功下载并更新了 ads.json。")
+
         except Exception as e:
             logger.error(f"下载ads.json时出错: {e}")
             self.try_load_local_ads()
@@ -44,9 +39,11 @@ class AdManager:
         try:
             with open(self.ads_file, "r", encoding="utf-8") as f:
                 self.ads = json.load(f)
+            return True
         except Exception as e:
             logger.error(f"解析ads.json时出错: {e}")
             self.load_default_ads()
+            return False
 
     def try_load_local_ads(self):
         if self.ads_file.exists():

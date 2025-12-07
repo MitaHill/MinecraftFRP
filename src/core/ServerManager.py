@@ -58,7 +58,7 @@ class ServerManager:
 
     def update_servers_from_network(self) -> Optional[Dict[str, Tuple[str, int, str]]]:
         """从网络下载并更新服务器列表，返回新的服务器字典"""
-        url = "https://clash.ink/file/frp-server-list.json"
+        url = "https://z.clash.ink/chfs/shared/MinecraftFRP/Data/frp-server-list.json"
         local_path = "config/frp-server-list.json"
 
         if not download_json(url, local_path):

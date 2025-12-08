@@ -1,6 +1,8 @@
 import subprocess
 import re
 import os
+import socket
+import time
 from src.utils.HttpManager import fetch_url_content
 from src.utils.LogManager import get_logger
 
@@ -22,6 +24,36 @@ def ping_host(host):
     except Exception as e:
         logger.error(f"Ping 出错: {e}")
         return None
+
+# TCP端口测试函数
+def test_tcp_port(host, port, timeout=2):
+    """测试TCP端口连通性
+    
+    Args:
+        host: 主机地址
+        port: 端口号
+        timeout: 超时时间（秒）
+    
+    Returns:
+        dict: 包含success, latency, error的字典
+    """
+    try:
+        start_time = time.time()
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(timeout)
+        result = sock.connect_ex((host, port))
+        elapsed = int((time.time() - start_time) * 1000)  # 毫秒
+        sock.close()
+        
+        if result == 0:
+            return {'success': True, 'latency': elapsed, 'error': None}
+        else:
+            return {'success': False, 'latency': elapsed, 'error': f'连接失败 (错误码: {result})'}
+    except socket.timeout:
+        return {'success': False, 'latency': timeout*1000, 'error': '连接超时'}
+    except Exception as e:
+        logger.error(f"TCP端口测试出错 {host}:{port}: {e}")
+        return {'success': False, 'latency': 0, 'error': str(e)}
 
 # 保存Ping数据到YAML文件
 def save_ping_data(ping_results, filename="config/ping_data.yaml"):

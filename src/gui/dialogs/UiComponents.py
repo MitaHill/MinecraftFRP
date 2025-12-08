@@ -74,13 +74,13 @@ def setup_table(dialog, layout):
 
 def setup_table_buttons(dialog, layout):
     table_button_layout = QHBoxLayout()
-    add_button = QPushButton("添加服务器")
-    add_button.clicked.connect(dialog.add_server_row)
-    table_button_layout.addWidget(add_button)
+    dialog.add_button = QPushButton("添加服务器")
+    dialog.add_button.clicked.connect(dialog.add_server_row)
+    table_button_layout.addWidget(dialog.add_button)
     
-    delete_button = QPushButton("删除选中")
-    delete_button.clicked.connect(dialog.delete_selected_row)
-    table_button_layout.addWidget(delete_button)
+    dialog.delete_button = QPushButton("删除选中")
+    dialog.delete_button.clicked.connect(dialog.delete_selected_row)
+    table_button_layout.addWidget(dialog.delete_button)
     
     table_button_layout.addStretch()
     layout.addLayout(table_button_layout)

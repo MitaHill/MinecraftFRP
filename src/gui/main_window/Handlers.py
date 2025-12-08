@@ -6,7 +6,7 @@ from PySide6.QtGui import QTextCursor
 from src.core.FrpcThread import FrpcThread
 from src.utils.PortGenerator import gen_port
 from src.gui.main_window.Threads import wait_for_thread
-from src.gui.Styles import STYLE
+from src.gui.styles import STYLE
 
 def set_port(window, port):
     """当检测到端口时，设置端口并触发自动映射"""

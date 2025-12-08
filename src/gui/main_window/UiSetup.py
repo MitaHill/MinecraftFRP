@@ -3,7 +3,7 @@ from pathlib import Path
 from PySide6.QtWidgets import QVBoxLayout, QTabWidget
 from PySide6.QtGui import QIcon
 
-from src.gui.Styles import STYLE
+from src.gui.styles import STYLE
 from src.gui.tabs.MappingTab import MappingTab
 from src.gui.tabs.ToolboxTab import ToolboxTab
 from src.gui.tabs.SettingsTab import SettingsTab

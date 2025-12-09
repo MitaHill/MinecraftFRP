@@ -1,5 +1,6 @@
 import os
 import sys
+import argparse
 import subprocess
 import yaml
 import hashlib
@@ -155,6 +156,14 @@ def run_nuitka_build(python_exe, script_path, output_dir, options, cache_dir):
     print("-"*80)
     return run_command(command, cache_dir=cache_dir)
 
+def parse_args(config):
+    parser = argparse.ArgumentParser(description="MinecraftFRP build & deploy")
+    parser.add_argument("--fast", action="store_true", help="Enable fast build (no LTO)")
+    parser.add_argument("--deploy", action="store_true", help="Deploy artifacts via SSH after build")
+    parser.add_argument("--ssh-user", type=str, help="SSH username (overrides cicd.yaml)")
+    parser.add_argument("--ssh-pass", type=str, help="SSH password (overrides cicd.yaml)")
+    return parser.parse_args()
+
 def main():
     """Main build and deploy script logic."""
     print("="*80); print(" MinecraftFRP Build & Deploy Script"); print("="*80)
@@ -165,14 +174,12 @@ def main():
     except Exception as e:
         print(f"ERROR: Could not load cicd.yaml: {e}"); sys.exit(1)
 
-    ssh_user, ssh_pass, deploy_choice = None, None, 'n'
-    fast_build_choice = input("Enable fast build mode (faster compile, slower exe)? (y/n): ").lower().strip()
-    deploy_choice = input("Will this run include deployment to SSH server? (y/n): ").lower().strip()
-    if deploy_choice == 'y':
-        default_user = config.get('ssh', {}).get('user', '')
-        ssh_user = input(f"Enter SSH username [{default_user}]: ").strip() or default_user
-        print("\n" + "!"*80); print("! WARNING: Your password will be displayed on screen..."); print("!"*80)
-        ssh_pass = input("Enter SSH password: ")
+    args = parse_args(config)
+    ssh_cfg = config.get('ssh', {})
+    ssh_user = args.ssh_user or ssh_cfg.get('user')
+    ssh_pass = args.ssh_pass or ssh_cfg.get('password')
+    deploy_choice = 'y' if args.deploy else 'n'
+    fast_build_choice = 'y' if args.fast else 'n'
     
     print("\nStarting build process...")
     python_exe = sys.executable
@@ -262,7 +269,11 @@ def main():
     
     deployment_successful = False
     if deploy_choice == 'y':
-        deployment_successful = upload_artifacts(config['ssh'], ssh_user, ssh_pass, final_exe_path, version_json_path)
+        if not ssh_user or not ssh_pass:
+            print("ERROR: SSH credentials missing. Provide via cicd.yaml or --ssh-user/--ssh-pass.")
+            deployment_successful = False
+        else:
+            deployment_successful = upload_artifacts(config['ssh'], ssh_user, ssh_pass, final_exe_path, version_json_path)
     else:
         print("\nSkipping deployment.")
 

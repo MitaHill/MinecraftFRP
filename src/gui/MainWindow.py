@@ -239,20 +239,24 @@ class PortMappingApp(QWidget):
                     progress.setValue(pct)
                 self._promo_progress_timer.timeout.connect(tick)
                 self._promo_progress_timer.start()
-                # 加速按钮：3秒冷却，每次随机前进3%-8%，防止溢出触发跳过
+                # 加速按钮：3秒冷却，每次随机前进5%-60%，98%处停止加速效果
                 def on_speedup():
                     import time, random
                     now = time.time()
                     if hasattr(self, '_promo_last_speedup_time'):
                         if now - self._promo_last_speedup_time < 3.0:
                             return  # 冷却中
+                    # 检查当前进度，98%后禁止加速
+                    current_pct = elapsed["v"] / dur_ms
+                    if current_pct >= 0.98:
+                        return  # 已达98%，停止加速
                     self._promo_last_speedup_time = now
-                    # 随机前进3%-8%
-                    speedup_pct = random.uniform(0.03, 0.08)
+                    # 随机前进5%-60%
+                    speedup_pct = random.uniform(0.05, 0.60)
                     elapsed["v"] += dur_ms * speedup_pct
-                    # 溢出检测：不超过95%，避免意外触发结束
-                    if elapsed["v"] >= dur_ms * 0.95:
-                        elapsed["v"] = dur_ms * 0.95
+                    # 溢出检测：不超过98%
+                    if elapsed["v"] >= dur_ms * 0.98:
+                        elapsed["v"] = dur_ms * 0.98
                 speedup_btn.clicked.connect(on_speedup)
                 
                 def on_timeout():

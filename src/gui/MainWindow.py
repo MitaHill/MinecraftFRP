@@ -174,7 +174,11 @@ class PortMappingApp(QWidget):
                 if pix:
                     try:
                         from PySide6.QtGui import QPixmap
-                        scaled = pix.scaled(480, 270, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                        # 仅在图片大于显示区域时等比例缩小，避免放大导致窗口尺寸变化
+                        max_w, max_h = 480, 270
+                        target_w = min(max_w, pix.width())
+                        target_h = min(max_h, pix.height())
+                        scaled = pix.scaled(target_w, target_h, Qt.KeepAspectRatio, Qt.SmoothTransformation)
                         lbl.setPixmap(scaled)
                     except Exception:
                         lbl.setText('')

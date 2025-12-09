@@ -298,14 +298,18 @@ class PortMappingApp(QWidget):
         url = ad.get('url', '#')
         
         formatted_text = f'<a href="{url}" style="color:{color}">{text}</a>'
+        self.mapping_tab.ad_label.setText(formatted_text)
 
     def _load_app_config(self):
-        """从YAML文件加载app_config"""
+        """从YAML文件加载app_config，兼容旧版本"""
         try:
             import yaml
             if self.app_config_path.exists():
                 with open(self.app_config_path, 'r', encoding='utf-8') as f:
-                    return yaml.safe_load(f) or {"settings": {}}
+                    config = yaml.safe_load(f)
+                    # 兼容旧版本：如果加载的不是字典，返回默认值
+                    if isinstance(config, dict):
+                        return config
         except Exception as e:
             logger.warning(f"加载app_config失败: {e}")
         return {"settings": {}}
@@ -319,7 +323,6 @@ class PortMappingApp(QWidget):
                 yaml.safe_dump(self.app_config, f, allow_unicode=True, sort_keys=False)
         except Exception as e:
             logger.warning(f"保存app_config失败: {e}")
-        self.mapping_tab.ad_label.setText(formatted_text)
 
     # --- Lifecycle and Callbacks ---
     def closeEvent(self, event: QCloseEvent):

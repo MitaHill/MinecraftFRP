@@ -160,7 +160,7 @@ class PortMappingApp(QWidget):
             # 加速按钮
             speedup_btn = QPushButton("⏩ 加速")
             speedup_btn.setMaximumWidth(80)
-            speedup_btn.setToolTip("点击加速5%（可连点）")
+            speedup_btn.setToolTip("点击获取随机的加速效果")
             # 底部布局：进度条+加速按钮
             bottom_layout = QHBoxLayout()
             bottom_layout.addWidget(progress)

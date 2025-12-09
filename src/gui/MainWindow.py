@@ -109,11 +109,26 @@ class PortMappingApp(QWidget):
         popup_ads = ad_data.get('popup_ads', [])
         if not self.is_closing and popup_ads:
             from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel
+            from PySide6.QtCore import QUrl
             promo_tab = QWidget()
             v = QVBoxLayout(promo_tab)
             lbl = QLabel()
             lbl.setAlignment(Qt.AlignCenter)
             v.addWidget(lbl)
+            # 备注文字与链接
+            remark_lbl = QLabel()
+            remark_lbl.setAlignment(Qt.AlignCenter)
+            remark_lbl.setOpenExternalLinks(False)
+            v.addWidget(remark_lbl)
+            def open_in_browser(url):
+                try:
+                    # 切到“线上公告”并加载动态地址
+                    self.tab_widget.setCurrentWidget(self.browser_tab)
+                    if getattr(self.browser_tab, 'view', None):
+                        self.browser_tab.view.setUrl(QUrl(url))
+                except Exception:
+                    pass
+            remark_lbl.linkActivated.connect(open_in_browser)
             # 插入“推广”标签页并切换过去
             self.promo_tab = promo_tab
             self.tab_widget.addTab(promo_tab, "推广")
@@ -137,18 +152,23 @@ class PortMappingApp(QWidget):
                     return
                 ad = self._promo_ads[self._promo_idx]
                 self._promo_idx += 1
-                # 显示图片（如有），否则显示文字链接
+                # 显示图片（如有），并在下方显示备注链接
                 pix = ad.get('pixmap')
+                url = ad.get('url', '#')
+                remark = ad.get('remark', '点击查看')
                 if pix:
                     try:
                         from PySide6.QtGui import QPixmap
-                        # 适配标签大小缩放
                         scaled = pix.scaled(480, 270, Qt.KeepAspectRatio, Qt.SmoothTransformation)
                         lbl.setPixmap(scaled)
                     except Exception:
-                        lbl.setText(f'<a href="{ad.get("url", "#")}">{ad.get("remark", "点击查看")}</a>')
+                        lbl.setText('')
                 else:
-                    lbl.setText(f'<a href="{ad.get("url", "#")}">{ad.get("remark", "点击查看")}</a>')
+                    lbl.setText('')
+                # 设置下方备注为超链接，点击后打开内置浏览器并跳转
+                remark_lbl.setText(f'<a href="{url}">{remark}</a>')
+                remark_lbl.linkActivated.disconnect()
+                remark_lbl.linkActivated.connect(open_in_browser)
                 dur = max(1000, int(ad.get('duration', 5)) * 1000)
                 QTimer.singleShot(dur, show_next)
             show_next()

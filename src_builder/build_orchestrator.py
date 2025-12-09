@@ -151,23 +151,26 @@ class BuildOrchestrator:
         print(f"\n🔒 Calculating SHA256 and generating metadata...")
         print(f"✅ Git: {self.version_manager.git_branch}@{self.version_manager.git_hash}")
         
-        # 生成版本信息
+        # 生成版本信息（先生成发布说明，再移动产物，最后在 dist 中生成 version.json）
         version_url = "https://z.clash.ink/chfs/shared/MinecraftFRP/Data/version.json"
         release_notes = self.version_manager.generate_release_notes(version_url)
-        
-        version_json_path = self._temp_main_build_dir / "version.json"
+
+        # 先移动到 dist 目录，确保后续路径一致
+        if not self._move_to_dist():
+            return False
+
+        # 在 dist 目录中生成 version.json，避免移动过程中丢失
+        self.version_json_path = self.final_dist_dir / "version.json"
         download_url = "https://z.clash.ink/chfs/shared/MinecraftFRP/lastet/MinecraftFRP.exe"
-        
         if not self.version_manager.create_version_json(
             self.final_exe_path,
             download_url,
-            str(version_json_path),
+            str(self.version_json_path),
             release_notes
         ):
             return False
         
-        # 移动到dist目录
-        return self._move_to_dist()
+        return True
     
     def _move_to_dist(self) -> bool:
         """

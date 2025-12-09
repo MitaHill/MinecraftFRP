@@ -159,7 +159,7 @@ def run_nuitka_build(python_exe, script_path, output_dir, options, cache_dir):
 def parse_args(config):
     parser = argparse.ArgumentParser(description="MinecraftFRP build & deploy")
     parser.add_argument("--fast", action="store_true", help="Enable fast build (no LTO)")
-    parser.add_argument("--deploy", action="store_true", help="Deploy artifacts via SSH after build")
+    parser.add_argument("--upload", action="store_true", help="Upload artifacts via SSH after build")
     parser.add_argument("--ssh-user", type=str, help="SSH username (overrides cicd.yaml)")
     parser.add_argument("--ssh-pass", type=str, help="SSH password (overrides cicd.yaml)")
     return parser.parse_args()
@@ -178,7 +178,7 @@ def main():
     ssh_cfg = config.get('ssh', {})
     ssh_user = args.ssh_user or ssh_cfg.get('user')
     ssh_pass = args.ssh_pass or ssh_cfg.get('password')
-    deploy_choice = 'y' if args.deploy else 'n'
+    deploy_choice = 'y' if args.upload else 'n'
     fast_build_choice = 'y' if args.fast else 'n'
     
     print("\nStarting build process...")

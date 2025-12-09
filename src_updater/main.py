@@ -57,7 +57,11 @@ class UpdateWorker(QThread):
                 self.progress.emit(40)
                 return True
             except IOError:
-                self.log.emit("等待文件锁释放...")
+                # 在50秒窗口内仅记录一次“等待文件锁释放...”以保持界面简洁
+                now = time.time()
+                if not hasattr(self, "_last_lock_log") or (now - getattr(self, "_last_lock_log", 0)) > 50:
+                    self.log.emit("等待文件锁释放...")
+                    self._last_lock_log = now
                 time.sleep(0.5)
             except FileNotFoundError:
                 self.log.emit("旧文件不存在，继续")
@@ -119,6 +123,17 @@ class UpdaterWindow(QWidget):
         
     def append_log(self, m):
         self.log.append(m)
+        # 自动裁剪日志，最大100K字符，超过则删除最旧内容
+        max_chars = 100_000
+        cur = len(self.log.toPlainText())
+        if cur > max_chars:
+            # 删除前部超出的字符
+            excess = cur - max_chars
+            doc = self.log.document()
+            cursor = self.log.textCursor()
+            cursor.movePosition(cursor.Start)
+            cursor.movePosition(cursor.Right, cursor.KeepAnchor, excess)
+            cursor.removeSelectedText()
     def enable_restart(self, path):
         self.restart_path = path; self.restart_btn.show(); self.progress.hide()
     def manual_restart(self):

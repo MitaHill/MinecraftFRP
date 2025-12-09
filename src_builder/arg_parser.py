@@ -45,6 +45,12 @@ Examples:
         help="Skip building updater (reuse existing)"
     )
     
+    parser.add_argument(
+        "--v2",
+        action="store_true",
+        help="Build using v2 installer-based architecture"
+    )
+    
     # 部署相关参数
     parser.add_argument(
         "--upload",

@@ -15,13 +15,20 @@ MinecraftFRP Build & Deploy Script (Modular Version)
 import sys
 from src_builder.arg_parser import parse_arguments
 from src_builder.build_orchestrator import BuildOrchestrator
+from src_builder.v2_builder import V2Builder
 
 
 def main():
     """构建脚本主入口函数"""
     args = parse_arguments()
-    orchestrator = BuildOrchestrator(args)
-    exit_code = orchestrator.run()
+    
+    # 根据参数选择构建器
+    if args.v2:
+        builder = V2Builder(args)
+    else:
+        builder = BuildOrchestrator(args)
+    
+    exit_code = builder.run()
     sys.exit(exit_code)
 
 if __name__ == "__main__":

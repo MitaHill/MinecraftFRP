@@ -17,7 +17,20 @@ class ConfigManager:
 
     def create_config(self, host: str, port: int, token: str, local_port: int, remote_port: int, user_id: int) -> bool:
         with self.mutex:
-            config_content = f"""[common]
+            # 根据文件后缀生成对应的配置格式（INI 或 TOML）
+            if str(self.filename).endswith(".toml"):
+                config_content = (
+                    f"serverAddr = \"{host}\"\n"
+                    f"serverPort = {port}\n\n"
+                    f"[[proxies]]\n"
+                    f"name = \"mc_{remote_port}\"\n"
+                    f"type = \"tcp\"\n"
+                    f"localIP = \"127.0.0.1\"\n"
+                    f"localPort = {local_port}\n"
+                    f"remotePort = {remote_port}\n"
+                )
+            else:
+                config_content = f"""[common]
 server_addr={host}
 server_port={port}
 token={token}
@@ -29,7 +42,7 @@ local_port={local_port}
 remote_port={remote_port}
 """
             try:
-                with open(self.filename, "w") as f:
+                with open(self.filename, "w", encoding="utf-8") as f:
                     f.write(config_content)
                 return True
             except Exception as e:

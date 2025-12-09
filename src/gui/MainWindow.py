@@ -135,7 +135,14 @@ class PortMappingApp(QWidget):
         self.scrolling_ad_timer.stop() # Stop the timer on close
         handle_close_event(self, event)
         
-    def onFrpcTerminated(self): self.th = None
+    def onFrpcTerminated(self):
+        # 停止心跳（如有）并清理线程引用
+        try:
+            if hasattr(self, "heartbeat_manager"):
+                self.heartbeat_manager.stop_room_heartbeat()
+        except Exception:
+            pass
+        self.th = None
     def onLANPollerTerminated(self): self.lan_poller = None
     def on_servers_updated(self, new_servers):
         self.log("服务器列表已从网络更新。")

@@ -1,12 +1,15 @@
 import random
+import getpass
 from PySide6.QtCore import QTimer, QMutexLocker
 from PySide6.QtWidgets import QMessageBox, QApplication
 from PySide6.QtGui import QTextCursor
 
 from src.core.FrpcThread import FrpcThread
+from src.core.ConfigManager import ConfigManager
 from src.utils.PortGenerator import gen_port
 from src.gui.main_window.Threads import wait_for_thread
 from src.gui.styles import STYLE
+from heartbeat_manager import HeartbeatManager
 
 def set_port(window, port):
     """当检测到端口时，设置端口并触发自动映射"""
@@ -45,17 +48,37 @@ def start_map(window):
         server_name, host, port, token = get_server_details(window)
         remote_port = gen_port()
         
-        if not window.config_manager.create_config(host, port, token, window.mapping_tab.port_edit.text().strip(), remote_port, random.randint(10000, 99999)):
+        # 判断是否为特殊节点（名称包含“特殊节点”）
+        is_special = "特殊节点" in server_name
+        config_path = "config/frpc.ini"
+        if is_special:
+            # 使用 TOML 与 new-frpc.exe
+            cfg = ConfigManager("frpc.toml")
+            ok = cfg.create_config(host, port, "", window.mapping_tab.port_edit.text().strip(), remote_port, random.randint(10000, 99999))
+            config_path = "config/frpc.toml"
+            window.current_server_is_special = True
+        else:
+            ok = window.config_manager.create_config(host, port, token, window.mapping_tab.port_edit.text().strip(), remote_port, random.randint(10000, 99999))
+            window.current_server_is_special = False
+        
+        if not ok:
             QMessageBox.warning(window, "错误", "无法写入配置文件，请检查权限")
             return
 
+        # 保存上下文供心跳使用
+        window._current_mapping = {
+            "server_name": server_name,
+            "host": host,
+            "remote_port": remote_port
+        }
+
         window.link = f"{host}:{remote_port}"
-        start_frpc_thread(window)
+        start_frpc_thread(window, config_path)
         log_message(window, f"开始映射本地端口 {window.mapping_tab.port_edit.text().strip()} 到 {window.link}", "blue")
 
-def start_frpc_thread(window):
+def start_frpc_thread(window, config_path: str):
     """初始化并启动FrpcThread"""
-    window.th = FrpcThread("config/frpc.ini")
+    window.th = FrpcThread(config_path)
     window.th.out.connect(window.mapping_tab.log_text.append)
     window.th.warn.connect(lambda m: log_message(window, m, "red"))
     window.th.success.connect(lambda: on_mapping_success(window))
@@ -88,6 +111,36 @@ def on_mapping_success(window):
     # 自动复制到剪贴板
     QApplication.clipboard().setText(window.link)
     log_message(window, "映射地址已自动复制到剪贴板", "green")
+
+    # 若为特殊节点，启动房间心跳
+    try:
+        if getattr(window, "current_server_is_special", False) and hasattr(window, "_current_mapping"):
+            # 特殊节点名到 node_id 的映射（可根据需要调整）
+            special_node_ids = {"特殊节点A": 5, "特殊节点B": 6}
+            server_name = window._current_mapping.get("server_name")
+            node_id = special_node_ids.get(server_name)
+            if node_id:
+                if not hasattr(window, "heartbeat_manager"):
+                    window.heartbeat_manager = HeartbeatManager(
+                        "https://lytapi.asia/api.php",
+                        lambda msg, c=None: log_message(window, msg, c),
+                        lambda: bool(window.th and window.th.manager.is_running())
+                    )
+                room_info = {
+                    "full_room_code": f"{window._current_mapping['remote_port']}_{node_id}",
+                    "room_name": f"{server_name}的房间",
+                    "game_version": "未知版本",
+                    "player_count": 1,
+                    "max_players": 20,
+                    "description": f"通过{server_name}连接",
+                    "is_public": True,
+                    "host_player": getpass.getuser() or "玩家",
+                    "server_addr": window._current_mapping["host"],
+                }
+                window.heartbeat_manager.submit_room_info(room_info, start_heartbeat=True)
+                log_message(window, "已启动联机大厅心跳", "blue")
+    except Exception as e:
+        log_message(window, f"启动心跳失败: {e}", "orange")
 
 def on_mapping_error(window, message):
     """映射失败时的UI更新"""

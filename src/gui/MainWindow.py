@@ -119,16 +119,13 @@ class PortMappingApp(QWidget):
             if hasattr(self, '_initial_geometry'):
                 self.setFixedSize(self._initial_geometry.size())
             promo_tab = QWidget()
-            promo_tab.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
             v = QVBoxLayout(promo_tab)
             v.setContentsMargins(8, 8, 8, 8)
             v.setSpacing(6)
+            # 图片容器：不固定QLabel尺寸，让图片自由缩放
             lbl = QLabel()
             lbl.setAlignment(Qt.AlignCenter)
-            # 固定显示区域，避免触发布局扩张
-            lbl.setFixedSize(480, 270)
-            lbl.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-            # 关键：保持图片等比例缩放而非裁剪
+            lbl.setMaximumSize(480, 270)
             lbl.setScaledContents(False)
             v.addWidget(lbl, 0, Qt.AlignCenter)
             # 备注文字（不作为跳转控件）

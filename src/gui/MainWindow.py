@@ -80,14 +80,13 @@ class PortMappingApp(QWidget):
 
         start_lan_poller(self)
         
-        # 延迟2秒启动后台网络任务，加速初始界面显示
-        from PySide6.QtCore import QTimer
-        QTimer.singleShot(2000, self._start_background_tasks)
+        # 立即启动后台网络任务（取消2秒延迟）
+        self._start_background_tasks()
         
         logger.info("Deferred initialization complete.")
 
     def _start_background_tasks(self):
-        """延迟启动后台网络任务"""
+        """启动后台网络任务"""
         start_server_list_update(self)
         
         # Setup and start update check thread
@@ -112,8 +111,8 @@ class PortMappingApp(QWidget):
             from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel
             promo_tab = QWidget()
             v = QVBoxLayout(promo_tab)
-            lbl = QLabel("正在加载推广...")
-            lbl.setOpenExternalLinks(True)
+            lbl = QLabel()
+            lbl.setAlignment(Qt.AlignCenter)
             v.addWidget(lbl)
             # 插入“推广”标签页并切换过去
             self.promo_tab = promo_tab
@@ -138,8 +137,18 @@ class PortMappingApp(QWidget):
                     return
                 ad = self._promo_ads[self._promo_idx]
                 self._promo_idx += 1
-                text = f'<a href="{ad.get("url", "#")}">{ad.get("remark", "点击查看")}</a>'
-                lbl.setText(text)
+                # 显示图片（如有），否则显示文字链接
+                pix = ad.get('pixmap')
+                if pix:
+                    try:
+                        from PySide6.QtGui import QPixmap
+                        # 适配标签大小缩放
+                        scaled = pix.scaled(480, 270, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                        lbl.setPixmap(scaled)
+                    except Exception:
+                        lbl.setText(f'<a href="{ad.get("url", "#")}">{ad.get("remark", "点击查看")}</a>')
+                else:
+                    lbl.setText(f'<a href="{ad.get("url", "#")}">{ad.get("remark", "点击查看")}</a>')
                 dur = max(1000, int(ad.get('duration', 5)) * 1000)
                 QTimer.singleShot(dur, show_next)
             show_next()

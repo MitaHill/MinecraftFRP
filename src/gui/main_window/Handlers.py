@@ -147,8 +147,8 @@ def on_mapping_success(window):
     # 若为特殊节点，启动房间心跳
     try:
         if getattr(window, "current_server_is_special", False) and hasattr(window, "_current_mapping"):
-            # 特殊节点名到 node_id 的映射（可根据需要调整）
-            special_node_ids = {"特殊节点A": 5, "特殊节点B": 6}
+            # 特殊节点名到 node_id 的映射（单字母节点：A=5, B=6, C=7...）
+            special_node_ids = {chr(65 + i): 5 + i for i in range(26)}  # A-Z 映射到 5-30
             server_name = window._current_mapping.get("server_name")
             node_id = special_node_ids.get(server_name)
             if node_id:

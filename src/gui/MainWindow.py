@@ -2,7 +2,7 @@ import tempfile
 import os
 import sys
 import subprocess
-from PySide6.QtCore import QMutex, QTimer
+from PySide6.QtCore import QMutex, QTimer, Qt
 from PySide6.QtWidgets import QWidget, QMessageBox
 from PySide6.QtGui import QCloseEvent
 

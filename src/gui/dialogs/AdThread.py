@@ -43,16 +43,14 @@ class AdThread(QThread):
                 logger.error("YAML格式错误: 'popup_ads' 应为一个列表。")
                 popup_ads = []
 
+            # 并行下载弹窗广告图片
             processed_popup_ads = []
-            for ad_item in popup_ads:
+            def fetch_one(ad_item):
                 if not all(k in ad_item for k in ['image', 'url', 'remark', 'duration']):
                     logger.warning(f"跳过格式不完整的弹窗广告条目: {ad_item}")
-                    continue
-
+                    return None
                 image_name = ad_item['image']
-                # Append cache-busting query parameter
                 image_url = f"{self.IMAGE_BASE_URL}{image_name}?v=1"
-                
                 try:
                     logger.info(f"正在下载弹窗广告图片: {image_url}")
                     from src.utils.HttpManager import get_session
@@ -60,25 +58,33 @@ class AdThread(QThread):
                     response = session.get(image_url, timeout=20, verify=True)
                     response.raise_for_status()
                     image_data = response.content
-
                     if not image_data:
                         logger.warning(f"下载图片失败或为空: {image_url}")
-                        continue
-                    
+                        return None
                     pixmap = QPixmap()
                     if not pixmap.loadFromData(image_data):
                         logger.warning(f"无法从数据加载图片: {image_url}")
-                        continue
-                    
-                    # Create a new dictionary with the pixmap
+                        return None
                     processed_ad = ad_item.copy()
                     processed_ad['pixmap'] = pixmap
-                    processed_popup_ads.append(processed_ad)
-
+                    return processed_ad
                 except Exception as e:
                     logger.error(f"处理弹窗广告图片 {image_url} 时出错: {e}")
-            
-            # Replace the original popup_ads with the processed ones (with pixmaps)
+                    return None
+            try:
+                from concurrent.futures import ThreadPoolExecutor, as_completed
+                with ThreadPoolExecutor(max_workers=4) as ex:
+                    futures = [ex.submit(fetch_one, item) for item in popup_ads]
+                    for fut in as_completed(futures):
+                        res = fut.result()
+                        if res:
+                            processed_popup_ads.append(res)
+            except Exception:
+                # 回退为串行
+                for item in popup_ads:
+                    res = fetch_one(item)
+                    if res:
+                        processed_popup_ads.append(res)
             ad_data['popup_ads'] = processed_popup_ads
 
             if ad_data.get('popup_ads') or ad_data.get('scrolling_ads'):

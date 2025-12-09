@@ -44,13 +44,21 @@ class WorkerThread(threading.Thread):
         wait_start = time.time()
 
         while psutil.pid_exists(pid):
-            if time.time() - wait_start > wait_time:
-                self.log_and_put(f"Timeout waiting for process {pid} to exit!", level="error")
-                self.put_status("Error: Main application timed out while closing!")
-                return False
+            elapsed = time.time() - wait_start
+            if elapsed > wait_time:
+                self.log_and_put(f"Timeout ({wait_time}s) waiting for process {pid}; attempting force termination...", level="warn")
+                try:
+                    p = psutil.Process(pid)
+                    for child in p.children(recursive=True):
+                        child.kill()
+                    p.kill()
+                    self.log_and_put("Force termination issued.")
+                except Exception as e:
+                    self.log_and_put(f"Force termination failed: {e}", level="error")
+                break
             self.log_and_put(f"Waiting for main application (PID: {pid}) to exit completely...")
             time.sleep(1)
-            self.put_progress(10 + int(20 * (time.time() - wait_start) / wait_time))
+            self.put_progress(10 + int(20 * elapsed / wait_time))
 
         self.log_and_put(f"Process {pid} has exited. Confirming file lock release...")
 

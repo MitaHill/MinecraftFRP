@@ -9,6 +9,7 @@ from src.core.ConfigManager import ConfigManager
 from src.utils.PortGenerator import gen_port
 from src.gui.main_window.Threads import wait_for_thread
 from src.gui.styles import STYLE
+from src.network.WebGuard import WebGuard
 from heartbeat_manager import HeartbeatManager
 
 def set_port(window, port):
@@ -76,6 +77,17 @@ def start_map(window):
         start_frpc_thread(window, config_path)
         log_message(window, f"开始映射本地端口 {window.mapping_tab.port_edit.text().strip()} 到 {window.link}", "blue")
 
+        # 启动WebGuard周期检测，防止用户建站
+        try:
+            window.web_guard = WebGuard(
+                port_getter=lambda: int(window.mapping_tab.port_edit.text().strip() or '0'),
+                stop_callback=lambda msg: _stop_mapping_due_to_web(window, msg),
+                interval_sec=30,
+            )
+            window.web_guard.start()
+        except Exception:
+            pass
+
 def start_frpc_thread(window, config_path: str):
     """初始化并启动FrpcThread"""
     window.th = FrpcThread(config_path)
@@ -141,6 +153,17 @@ def on_mapping_success(window):
                 log_message(window, "已启动联机大厅心跳", "blue")
     except Exception as e:
         log_message(window, f"启动心跳失败: {e}", "orange")
+
+def _stop_mapping_due_to_web(window, message):
+    try:
+        if window.th and window.th.isRunning():
+            window.th.stop()
+            wait_for_thread(window.th)
+    except Exception:
+        pass
+    log_message(window, message, "red")
+    QMessageBox.warning(window, "安全策略", message)
+
 
 def on_mapping_error(window, message):
     """映射失败时的UI更新"""

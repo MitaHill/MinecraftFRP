@@ -35,6 +35,13 @@ class FrpcThread(QThread):
         except Exception as e:
             self.error.emit(f"运行frpc时出错: {str(e)}")
         finally:
+            # 尝试删除临时配置文件，降低泄露风险
+            try:
+                import os
+                if isinstance(self.ini_path, str) and os.path.exists(self.ini_path):
+                    os.remove(self.ini_path)
+            except Exception:
+                pass
             # 确保进程清理
             self.manager.stop()
             self.terminated.emit()

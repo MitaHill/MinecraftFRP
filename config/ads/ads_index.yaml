@@ -1,0 +1,23 @@
+# 这是统一广告索引文件的正确格式范例。
+# 顶层是字典，包含 'popup_ads' 和 'scrolling_ads' 两个列表。
+
+# 启动窗口广告
+popup_ads:
+  - image: "need_ads.png"
+    url: "https://b.clash.ink/archives/mi-ta-shan-lian-ji-gong-ju"
+    remark: "广告位招租喵"
+    duration: 7
+  - image: "will_3_servers.png"
+    url: "https://b.clash.ink/1765221023491"
+    remark: "会有重大更新"
+    duration: 10
+
+
+# 滚动文字广告
+scrolling_ads:
+  - text: "通过浏览器，手动下载最新版的Minecraft FRP"
+    url: "https://z.clash.ink/chfs/shared/MinecraftFRP/lastet/MinecraftFRP.exe"
+  - text: "阅读关于此项目帮助信息"
+    url: "https://b.clash.ink/archives/mi-ta-shan-lian-ji-gong-ju"
+  - text: "赞助我"
+    url: "https://afdian.com/a/MitaHill"

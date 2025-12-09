@@ -24,45 +24,133 @@
 
 ## 2.5 架构版本说明
 
-### v2.0 架构 (当前)
-从 v2.0 开始，项目从**单文件模式**转向**目录安装模式**，并引入了专用安装程序。
+### v2.0 架构 (当前) - 全新安装器模式
+
+从 v2.0 开始，项目进行了**彻底重构**，从单文件模式转向**安装器 + 目录部署**的全新架构，彻底解决了v1.x的文件锁、更新复杂等问题。
+
+---
 
 #### 核心改进：
-1. **安装程序引入**：使用 PySide6 编写的轻量化图形安装器，引导用户选择安装位置
-2. **多文件目录结构**：放弃单文件打包，采用目录化部署
-3. **启动器/更新器合一**：Updater.exe 作为程序入口，集成更新检测与主程序启动
-4. **彻底解决文件锁问题**：更新时主程序未运行，避免文件占用冲突
+1. **专业安装程序**：使用 PySide6 手工编写的图形化安装器，提供完整的安装向导体验
+2. **目录化部署**：放弃单文件打包，采用标准软件目录结构
+3. **启动器 (Launcher)**：用户入口改为 `launcher.exe`，负责更新检测和启动主程序
+4. **配置文件分离**：用户数据存储在 `文档/MitaHillFRP/` 目录，支持跨版本保留配置
+5. **更新机制重设计**：下载完整安装包 → 自动覆盖安装 → 保留用户配置
+
+---
 
 #### v2.0 目录结构：
+
+**安装目录** (默认: `C:\Users\<用户名>\AppData\Local\MinecraftFRP\`)
 ```
-安装目录/ (用户可选，默认 C:\Program Files\MinecraftFRP\)
-├── MinecraftFRP.exe          # 主程序
-├── Updater.exe                # 启动器/更新器 (用户双击此程序)
-├── Installer.exe              # 安装程序 (仅用于分发)
-├── base\                      # 依赖资源
-│   ├── frpc.exe               # FRP 客户端
-│   ├── new-frpc.exe           # 新版 FRP 客户端
+MinecraftFRP/
+├── launcher.exe               # 【用户入口】启动器（检查更新 + 启动主程序）
+├── app.exe                    # 主程序（由 launcher 调用）
+├── uninstall.exe              # 卸载程序
+├── base/                      # 依赖资源目录
+│   ├── frpc.exe               # FRP 客户端 (旧版)
+│   ├── new-frpc.exe           # FRP 客户端 (新版 TOML)
 │   └── tracert.exe            # 网络诊断工具
-├── config\                    # 配置文件目录
-│   ├── app_config.yaml        # 应用配置
-│   ├── ads\                   # 广告缓存
-│   └── frp-server-list.json   # 服务器列表
-└── logs\                      # 日志文件目录
-    ├── app.log                # 主程序日志
-    └── updater.log            # 更新器日志
+├── config/                    # 本地配置缓存 (非用户数据)
+│   ├── frp-server-list.json   # 服务器列表缓存
+│   └── ads/                   # 广告图片缓存
+├── logs/                      # 运行日志
+│   ├── app.log
+│   └── launcher.log
+└── downloads/                 # 更新包下载缓存
 ```
+
+**用户配置目录** (`C:\Users\<用户名>\Documents\MitaHillFRP\`)
+```
+MitaHillFRP/
+├── app_config.yaml            # 用户个人配置（端口、主题等）
+└── install_record.dat         # 安装记录文件（记录安装路径和版本）
+```
+
+---
+
+#### v2.0 安装流程：
+
+**首次安装：**
+1. 用户运行 `Minecraft_FRP_Installer.exe`
+2. 安装器显示欢迎页 → 用户协议（MarkDown格式，强调杀软误报提示）
+3. 用户选择安装路径（默认 `C:\Users\<用户名>\AppData\Local\MinecraftFRP\`）
+4. 安装器解压所有文件 → 创建桌面/开始菜单快捷方式（指向 `launcher.exe`）
+5. 在 `文档/MitaHillFRP/` 创建 `install_record.dat`，记录安装路径和版本
+6. 安装完成，提示用户启动程序
+
+**升级安装（覆盖安装）：**
+1. Launcher 检测到新版本 → 下载 `Minecraft_FRP_Installer.exe` 到 `downloads/` 目录
+2. Launcher 自动启动安装器，并传递参数 `--silent-upgrade`
+3. 安装器读取 `文档/MitaHillFRP/install_record.dat`，获取上次安装路径
+4. 弹出对话框："检测到新版本 vX.Y.Z，是否立即安装？（10秒后自动开始）"
+5. 用户确认或超时 → 安装器覆盖安装目录中的所有文件（保留 `config/` 和 `logs/`）
+6. 安装器更新 `install_record.dat` 中的版本号
+7. 安装完成，自动启动新版本的 `launcher.exe`
+
+**卸载流程：**
+1. 用户运行 `uninstall.exe` 或通过系统控制面板卸载
+2. 卸载程序删除整个安装目录
+3. 询问用户是否保留配置文件（`文档/MitaHillFRP/`）
+4. 删除桌面和开始菜单快捷方式
+5. （可选）删除 `文档/MitaHillFRP/` 目录
+
+---
 
 #### v2.0 更新机制：
-1. **用户操作**：双击桌面快捷方式 → 启动 Updater.exe
-2. **版本检测**：Updater 检查本地版本与服务器版本
-3. **智能分支**：
-   - 版本最新 → 直接启动 MinecraftFRP.exe
-   - 版本过旧 → 下载新版本 → 替换文件 → 启动新版本
-4. **优势**：无需关闭主程序，更新流程完全无感
 
-#### 分发方式：
-- 单个安装包：`MinecraftFRP_Setup_v2.x.x.exe`
-- 安装器内嵌所有组件，用户一键安装
+**完整流程：**
+```
+用户双击桌面快捷方式
+    ↓
+launcher.exe 启动
+    ↓
+读取本地版本 (从 app.exe 元数据或配置文件)
+    ↓
+异步请求 https://z.clash.ink/chfs/shared/MinecraftFRP/Data/version.json
+    ↓
+┌─────────────────────────────────────┐
+│ 版本对比                            │
+├─────────────────────────────────────┤
+│ 【最新】→ 直接启动 app.exe          │
+│ 【过旧】→ 下载安装包 + 覆盖安装     │
+└─────────────────────────────────────┘
+    ↓ (版本过旧)
+下载: https://z.clash.ink/chfs/shared/MinecraftFRP/lastet/Minecraft_FRP_Installer.exe
+    ↓ (保存到 downloads/ 目录)
+启动安装器: installer.exe --silent-upgrade
+    ↓
+安装器读取 install_record.dat → 覆盖安装
+    ↓
+安装完成 → launcher 自动启动新版 app.exe
+```
+
+**关键特性：**
+- **无需关闭主程序**：更新流程在 launcher 层完成，app.exe 未运行时才开始安装
+- **配置保留**：用户配置存储在独立的 `文档/MitaHillFRP/` 目录，不会被覆盖
+- **降级保护**：不支持降级安装，确保版本单向升级
+- **静默更新选项**：launcher 可配置自动静默更新（无需用户确认）
+
+---
+
+#### v2.0 分发与部署：
+
+**最终产物：**
+```
+dist/
+├── MinecraftFRP_版本号_install/
+│   └── Minecraft_FRP_Installer.exe   # 【唯一分发文件】
+└── version_index/
+    └── version.json                  # 版本清单文件
+```
+
+**服务器部署：**
+- `Minecraft_FRP_Installer.exe` → 上传到 `/root/chfs/share/MinecraftFRP/lastet/Minecraft_FRP_Installer.exe`
+- `version.json` → 上传到 `/root/chfs/share/MinecraftFRP/Data/version.json`
+
+**用户获取方式：**
+- **首次安装**：从官网/分发渠道下载 `Minecraft_FRP_Installer.exe`
+- **后续更新**：launcher 自动下载最新安装器并覆盖安装
 
 ## 3. Git 工作流与规范 (严格执行)
 

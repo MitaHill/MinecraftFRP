@@ -2,6 +2,7 @@ import tempfile
 import os
 import sys
 import subprocess
+from pathlib import Path
 from PySide6.QtCore import QMutex, QTimer, Qt
 from PySide6.QtWidgets import QWidget, QMessageBox
 from PySide6.QtGui import QCloseEvent
@@ -60,7 +61,9 @@ class PortMappingApp(QWidget):
         self.auto_mapping_enabled = False
         self.dark_mode_override = False
         self.force_dark_mode = False
-        self.app_config = {"settings": {}}
+        self.app_config_path = Path("config/app_config.yaml")
+        self.app_config = self._load_app_config()
+
         
         setup_main_window_ui(self, self.SERVERS)
         # 延迟记录初始窗口尺寸，等待UI完全构建
@@ -295,6 +298,27 @@ class PortMappingApp(QWidget):
         url = ad.get('url', '#')
         
         formatted_text = f'<a href="{url}" style="color:{color}">{text}</a>'
+
+    def _load_app_config(self):
+        """从YAML文件加载app_config"""
+        try:
+            import yaml
+            if self.app_config_path.exists():
+                with open(self.app_config_path, 'r', encoding='utf-8') as f:
+                    return yaml.safe_load(f) or {"settings": {}}
+        except Exception as e:
+            logger.warning(f"加载app_config失败: {e}")
+        return {"settings": {}}
+
+    def _save_app_config(self):
+        """保存app_config到YAML文件"""
+        try:
+            import yaml
+            self.app_config_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(self.app_config_path, 'w', encoding='utf-8') as f:
+                yaml.safe_dump(self.app_config, f, allow_unicode=True, sort_keys=False)
+        except Exception as e:
+            logger.warning(f"保存app_config失败: {e}")
         self.mapping_tab.ad_label.setText(formatted_text)
 
     # --- Lifecycle and Callbacks ---

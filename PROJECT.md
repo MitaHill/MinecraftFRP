@@ -19,7 +19,50 @@
 - **核心功能**: FRP (通过 subprocess 调用 frpc 可执行文件)
 - **依赖管理**: pip (requirements.txt)
 - **打包工具**: Nuitka
+- **安装程序**: PySide6 (轻量化安装器)
 - **版本控制**: Git
+
+## 2.5 架构版本说明
+
+### v2.0 架构 (当前)
+从 v2.0 开始，项目从**单文件模式**转向**目录安装模式**，并引入了专用安装程序。
+
+#### 核心改进：
+1. **安装程序引入**：使用 PySide6 编写的轻量化图形安装器，引导用户选择安装位置
+2. **多文件目录结构**：放弃单文件打包，采用目录化部署
+3. **启动器/更新器合一**：Updater.exe 作为程序入口，集成更新检测与主程序启动
+4. **彻底解决文件锁问题**：更新时主程序未运行，避免文件占用冲突
+
+#### v2.0 目录结构：
+```
+安装目录/ (用户可选，默认 C:\Program Files\MinecraftFRP\)
+├── MinecraftFRP.exe          # 主程序
+├── Updater.exe                # 启动器/更新器 (用户双击此程序)
+├── Installer.exe              # 安装程序 (仅用于分发)
+├── base\                      # 依赖资源
+│   ├── frpc.exe               # FRP 客户端
+│   ├── new-frpc.exe           # 新版 FRP 客户端
+│   └── tracert.exe            # 网络诊断工具
+├── config\                    # 配置文件目录
+│   ├── app_config.yaml        # 应用配置
+│   ├── ads\                   # 广告缓存
+│   └── frp-server-list.json   # 服务器列表
+└── logs\                      # 日志文件目录
+    ├── app.log                # 主程序日志
+    └── updater.log            # 更新器日志
+```
+
+#### v2.0 更新机制：
+1. **用户操作**：双击桌面快捷方式 → 启动 Updater.exe
+2. **版本检测**：Updater 检查本地版本与服务器版本
+3. **智能分支**：
+   - 版本最新 → 直接启动 MinecraftFRP.exe
+   - 版本过旧 → 下载新版本 → 替换文件 → 启动新版本
+4. **优势**：无需关闭主程序，更新流程完全无感
+
+#### 分发方式：
+- 单个安装包：`MinecraftFRP_Setup_v2.x.x.exe`
+- 安装器内嵌所有组件，用户一键安装
 
 ## 3. Git 工作流与规范 (严格执行)
 
@@ -608,16 +651,25 @@ python build.py --skip-updater
 
 ### 23.5 服务端接口（建议）
 - REST
-  - POST   /api/lobby/rooms         # upsert 创建/续签（携带 full_room_code）
-  - DELETE /api/lobby/rooms         # 删除（按 full_room_code）
-  - GET    /api/lobby/rooms         # 查询（支持分页、筛选：version、node、keyword、is_public）
-  - GET    /api/lobby/nodes         # 节点元数据（展示名称、地区、负载、是否特殊节点）
+  - POST   /api/lobby/rooms                 # upsert 创建/续签（携带 full_room_code）
+  - DELETE /api/lobby/rooms                 # 删除（按 full_room_code）
+  - GET    /api/lobby/rooms                 # 查询（分页/筛选：version、loader、node、keyword、is_public、tags[]）
+  - GET    /api/lobby/nodes                 # 节点元数据（展示名称、地区、负载、是否特殊节点）
+  - POST   /api/auth/login                  # 账号登录（保留接口），入参：username/password；出参：access_token/refresh_token
+  - POST   /api/auth/refresh                # 刷新令牌（保留接口）
+  - GET    /api/users/me                    # 获取当前账号信息（保留接口）
+  - GET    /api/moderation/wordlist        # 敏感词词表增量/版本（客户端本地缓存，保留接口）
+  - POST   /api/moderation/report          # 举报接口（房间/用户/文本），用于反馈与二次审核
 - WebSocket（可选增强）
-  - /api/lobby/stream               # 房间增删改推送，客户端用于实时刷新列表
-- 鉴权与防伪造（推荐最小闭环方案）
+  - /api/lobby/stream                       # 房间增删改推送，客户端用于实时刷新列表
+- 鉴权与防伪造（最小闭环方案）
   - Header：x-app=MCFRP，x-ts=unix_ms，x-sign=HMAC_SHA256(body+ts, shared_key)
+  - Authorization: Bearer <access_token>（当账号体系启用时）
   - shared_key 按版本轮换；客户端内做混淆拼接；服务端允许±60s 时间偏差。
   - 频控：同一IP 1min 内创建≤N、心跳≤120/小时；可灰度动态调整。
+- 校验与拦截
+  - 文本字段统一按长度、字符集与敏感词规则进行校验；违规请求直接 400/422。
+  - 支持可配置的正则黑白名单（前缀/后缀/关键词/Emoji 过滤），并在响应中回传 normalized 文本。
 
 ### 23.6 心跳与清理策略
 - 心跳周期：30s；服务端容忍窗口：90s 未收到则标记下线、120s 清理。
@@ -657,6 +709,100 @@ python build.py --skip-updater
 - 清理任务：每60s 扫描 rooms，过期清理；指标上报。
 
 ### 23.13 监控与可观测性
-- 指标：活跃房间数、创建/删除QPS、心跳成功率、超时清理数、平均心跳延迟。
-- 日志：按 request-id 关联；异常类型聚合；可选接入Sentry/Prometheus/Grafana。
-- 应急：灰度开关、签名轮换、黑名单实时下发与回滚预案。
+- 指标：活跃房间数、创建/删除QPS、心跳成功率、超时清理数、平均心跳延迟、敏感词命中率、拦截率。
+- 日志：按 request-id 关联；异常类型聚合；可选接入 Sentry/Prometheus/Grafana。
+- 应急：灰度开关、签名轮换、黑名单实时下发与回滚预案；敏感词/正则规则热更新。
+
+### 23.14 内容审核与敏感词（客户端+服务端）
+- 客户端：本地缓存词表与正则规则（版本化），在提交前本地预检并高亮违规字段；不修改原输入，仅提示。
+- 服务端：最终裁决；返回 422 并附带字段级错误原因与命中条目；支持按地区/语言下发差异化词表。
+- 词表更新：GET /api/moderation/wordlist 返回 {version, rules[]}；客户端按版本号增量更新并落盘。
+
+### 23.15 账号体系与权限（保留接口）
+- 形态：阶段一匿名（签名+频控），阶段二账号（用户名/密码），阶段三三方登录（可选）。
+- Token：JWT 或等价，短期 access + 长期 refresh；客户端仅在 Header 发送，不落入房间业务体。
+- 权限：普通玩家/认证房主/官方节点管理员；不同角色的发布额度、可见性、审核流程不同。
+
+### 23.16 API 版本化与兼容
+- Header: X-Api-Version: 1；Body 中携带 api_version: "v1"；当 v2 演进时保持向后兼容并保留旧字段。
+- 字段演进：新增字段默认可空；删除字段先标记 deprecated≥2个小版本周期后再移除。
+
+### 23.17 前瞻功能路线（保留接口）
+- 房间口令与邀请：支持一次性邀请链接/二维码；私密房间不在公共列表展示，仅持有链接可见。
+- 匹配推荐：结合节点负载、近似延迟、玩家偏好与历史加入记录，提供个性化排序（端上可关闭）。
+- 兼容性匹配：基于 loader/modpack_hash 的兼容建议与冲突提示。
+- 社交：收藏/最近加入/屏蔽；房主公告与轮播；跨房间消息通道（仅服务端可见的系统广播）。
+- 反滥用扩展：设备指纹与风险评分（隐私合规前提下），灰度拦截与人工复核通道。
+
+### 23.18 小型自建形态（当前阶段最简实现）
+- 更新于：2025-12-09T19:05:03.964Z（自建版规划，保持大胆设想但实现最小闭环）
+- 服务端形态：单进程 FastAPI + SQLite（rooms.db，单表 rooms，按 updated_at 建索引），无账号体系；仅暴露三条接口：
+  - POST /api/lobby/rooms（upsert，携带 full_room_code）
+  - DELETE /api/lobby/rooms（按 full_room_code 下架）
+  - GET /api/lobby/rooms（分页+简单筛选：keyword、node、loader、is_public、version）
+- 预留接口但暂不启用：/api/auth/login、/api/auth/refresh、/api/users/me、/api/moderation/wordlist（返回固定占位数据或 404）。
+- 客户端上报字段扩展（立即生效，均可选）：
+  - loader: "Vanilla" | "Forge" | "NeoForge" | "Fabric" | "Quilt"
+  - modpack_name: str, modpack_version: str
+  - tags: list[str]（如 ["生存","建筑","PVP"]）
+  - region: str（展示区域/线路，如 CN-North）
+  - allow_listed: bool（房主声明是否启用白名单，仅用作展示）
+  - ext: dict（保留扩展字段，客户端与服务端均应原样透传）
+- 防滥用（轻量化）：
+  - 签名可选：Header x-ts + x-sign = HMAC_SHA256(body+ts, shared_key)，shared_key 存服务端配置，客户端做混淆；时间偏移±60s。
+  - 频控：同一 IP 1分钟内 POST ≤ 3；心跳频次 ≤ 120/小时；超出返回 429。
+  - 敏感词：客户端本地正则预检（可空），服务端使用最简 regex 列表（支持通配词根），命中则 422 返回具体字段与命中词。
+- 心跳策略：仍为 30s；服务端 90s 标记下线、120s 清理；客户端异常退出由服务端超时兜底。
+- 部署与运维（极简）：
+  - 启动：python server.py 或 uvicorn server:app --host 0.0.0.0 --port 9000
+  - 数据：SQLite 单文件，提供每日自动备份（可选 cron）；无需外部缓存。
+  - CORS：仅允许客户端 User-Agent/Origin 白名单（简化为 * 也可，但不推荐）。
+- 渐进式演进轨道：
+  - P1（当前）三接口+SQLite+HMAC（可关）；
+  - P2（可选）加入 WebSocket 推送与更细筛选；
+  - P3（保留）启用账号、令牌与更完整审核链路。
+
+### 23.19 反向代理与源IP识别（Nginx/SSL 终止/控制协议）
+- 目标：在启用 SSL 反向代理（如 Nginx、Caddy）时，服务端能够准确识别客户端真实源 IP，并支持反代控制协议。
+- 支持能力：
+  - Header 信任链：X-Forwarded-For（首个未信任代理IP）、X-Real-IP、X-Forwarded-Proto、X-Forwarded-Host。
+  - PROXY protocol v1/v2（可选）：在内网直连或四层反代下启用，以获取源地址信息。
+  - 受信代理白名单：仅当请求来源于 127.0.0.1/内网网段/配置的反代IP 时才信任上述头部，避免伪造。
+- 记录策略：
+  - request_ip_raw：TCP 层对端地址（反代地址）。
+  - request_ip_effective：解析自可信头部/PROXY 协议的真实客户端IP。
+  - tls_offload: true/false 标记请求是否经由 TLS 终止（X-Forwarded-Proto==https 视为 true）。
+- 接口兼容：所有 REST/WebSocket 接口均应填充 request_ip_effective，用于频控、审计与展示（UI 可脱敏显示）。
+- 参考 Nginx 配置（示例）：
+  ```nginx
+  server {
+      listen 443 ssl http2;
+      server_name example.com;
+      ssl_certificate     /etc/ssl/fullchain.pem;
+      ssl_certificate_key /etc/ssl/privkey.pem;
+
+      location /api/ {
+          proxy_pass http://127.0.0.1:9000;
+          proxy_set_header Host $host;
+          proxy_set_header X-Real-IP $remote_addr;
+          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+          proxy_set_header X-Forwarded-Proto $scheme;
+          proxy_http_version 1.1;
+          proxy_set_header Connection "";
+      }
+  }
+  ```
+- FastAPI 获取源 IP（示例伪码）：
+  ```python
+  def get_effective_ip(request):
+      peer = request.client.host
+      if peer in TRUSTED_PROXIES:
+          xff = request.headers.get("X-Forwarded-For", "")
+          xri = request.headers.get("X-Real-IP")
+          ip = (xff.split(",")[0].strip() if xff else xri) or peer
+      else:
+          ip = peer
+      return ip
+  ```
+- 审计与风控：日志中同时记录 raw/effective IP；频控以 effective IP 为主、raw IP 为辅；
+- 时间戳：更新于 2025-12-09T19:06:16.291Z（预留反代控制协议与 SSL 终止场景支持）。

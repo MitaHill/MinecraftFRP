@@ -112,9 +112,12 @@ class PortMappingApp(QWidget):
             from PySide6.QtCore import QUrl
             promo_tab = QWidget()
             v = QVBoxLayout(promo_tab)
+            v.setContentsMargins(8, 8, 8, 8)
+            v.setSpacing(6)
             lbl = QLabel()
             lbl.setAlignment(Qt.AlignCenter)
-            lbl.setMaximumSize(480, 270)
+            # 固定显示区域，避免触发布局扩张
+            lbl.setFixedSize(480, 270)
             lbl.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
             lbl.setScaledContents(False)
             v.addWidget(lbl)
@@ -151,6 +154,13 @@ class PortMappingApp(QWidget):
                 except Exception:
                     pass
             def show_next():
+                # 停止并断开上一轮进度条连接，重置进度
+                try:
+                    self._promo_progress_timer.stop()
+                    self._promo_progress_timer.timeout.disconnect()
+                except Exception:
+                    pass
+                progress.setValue(0)
                 if self._promo_idx >= len(self._promo_ads):
                     # 结束：移除推广标签，解锁并跳转到“映射”
                     idx = self.tab_widget.indexOf(promo_tab)
@@ -159,7 +169,6 @@ class PortMappingApp(QWidget):
                     for i in range(self.tab_widget.count()):
                         self.tab_widget.setTabEnabled(i, True)
                     self.tab_widget.setCurrentWidget(self.mapping_tab)
-                    self._promo_progress_timer.stop()
                     return
                 ad = self._promo_ads[self._promo_idx]
                 self._promo_idx += 1
@@ -173,11 +182,10 @@ class PortMappingApp(QWidget):
                     except Exception:
                         pass
                 lbl.mousePressEvent = on_image_click
-                # 显示图片
+                # 显示图片（仅缩小不放大）
                 if pix:
                     try:
                         from PySide6.QtGui import QPixmap
-                        # 仅在图片大于显示区域时等比例缩小，避免放大导致窗口尺寸变化
                         max_w, max_h = 480, 270
                         target_w = min(max_w, pix.width())
                         target_h = min(max_h, pix.height())
@@ -190,14 +198,13 @@ class PortMappingApp(QWidget):
                 # 设置备注样式（颜色与字号随主题变化）
                 color = "#1a73e8" if self.theme == "light" else "#66ccff"
                 remark_lbl.setText(f"<span style='color:{color}; font-size:14px;'>{remark}</span>")
-                # 进度条动画
+                # 启动新的进度条动画
                 dur_ms = max(1000, int(ad.get('duration', 5)) * 1000)
                 elapsed = {"v": 0}
                 def tick():
                     elapsed["v"] += 100
                     pct = min(100, int(elapsed["v"] * 100 / dur_ms))
                     progress.setValue(pct)
-                self._promo_progress_timer.timeout.disconnect if hasattr(self._promo_progress_timer, 'timeout') else None
                 self._promo_progress_timer.timeout.connect(tick)
                 self._promo_progress_timer.start()
                 QTimer.singleShot(dur_ms, show_next)

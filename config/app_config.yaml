@@ -16,11 +16,12 @@ network:
   - 3306
   - 8080
   - 25565
+promo_last_shown_date: '2025-12-09'
 settings:
   auto_mapping: true
   dark_mode_override: true
-  force_dark_mode: false
-  last_server: 特殊节点B
+  force_dark_mode: true
+  last_server: 特殊节点A
 ui:
   ad_update_interval: 3000
   ping_update_interval: 3000

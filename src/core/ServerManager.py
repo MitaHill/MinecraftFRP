@@ -3,6 +3,7 @@ from typing import Dict, Tuple, Optional
 from src.network.PingUtils import download_json, read_json_file
 from src.utils.Crypto import decrypt_data, load_servers_from_json
 from src.utils.LogManager import get_logger
+from src.utils.PathUtils import get_resource_path
 
 logger = get_logger()
 
@@ -10,6 +11,8 @@ logger = get_logger()
 DEFAULT_SERVERS_ENCRYPTED = (
     "pZRl39qlwvH6E3jTxG7FyQNxIBuUs27pryM6VNV2hjhDlZh8tCtmtBcVglI7UP/5Pj6+h+ks01+sQ4oqiC9HiK3TdxdIE4tPb1bV7OqDhGTE7LR8ZXT3T8Qmg7xsX4Tr5aj36qHZPfjOJ+p2Z70uHs7LUtCrjv86pVmZsQ+rts9wvaKp7K/t2HGVwWTDhQeGQH6MIopged9AqihEgXKyFucfAjU/IHk+6QeJ9mLaj4Xvl1tysPsj2n1owQTJpGoe/mQW9OZX/RyVlZPF8auNWY0F02jAFR89WCM3G3gF5SE4aSZjIly65Y0H/0yNeU+iXL7x4hRx9Lof9gSLLv3ZqcEtiBhUa7sE2rPS2JG3J/M9NJeG5bw2gCaWOxZRQoVkvXnUswa0E1MFwiy7X7EFlZqcBd+E9u/qQwrtHaBOg14f61Y2CIFpNFMyw+TkSj1XvtKAG61rTOOVWG1VRLUj24uocCPe4yMLaYIEYyIzJu9WUviJ9kobs3nZCcc8nZn8iPug7cRfgJvufmCe+wUsmiDLpk9sG2SR80l1PEp0xvvmtIIgY6W2RTJyDNl4T9XpgRn2n/sW2rI5MDzp6DEO6RCpNlmQT7MxcZUQWUPPGIVciH4sGmQEcIuV9l9u0ejjVnYcjm+htwB9TY/jIG6Sx0Ix5voT7mGBTZOlMgCWK1agXX/Aqtgv7WYxOo3Vif89TG47m875NJ8PZgdm1teHUf1QWzXp76lAz+ed2wWCppR+5hodLFSo4s2KEFPfTcKWBRZp5ItkabQuHutvWz9doqxmDPczrdWTihDSwB2WcoJEiq9houwrTkDKUodMF2pu"
 )
+
+# 特殊节点将从本地资源 config/special_nodes.json 加载
 
 class ServerManager:
     def __init__(self):
@@ -21,6 +24,20 @@ class ServerManager:
         # 首先加载内置的，然后尝试从本地文件覆盖
         self.servers = self._load_default_servers()
         self._load_servers_from_local()
+        self._merge_special_nodes()
+
+    def _merge_special_nodes(self) -> None:
+        """确保特殊节点始终存在于服务器列表中，并位于末尾（展示在底部）。"""
+        try:
+            path = get_resource_path("config/special_nodes.json")
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if isinstance(data, dict):
+                self.servers.update(data)
+        except FileNotFoundError:
+            logger.warning("未找到 config/special_nodes.json，跳过特殊节点合并。")
+        except Exception as e:
+            logger.error(f"加载特殊节点失败: {e}")
 
     def _load_default_servers(self) -> Dict[str, Tuple[str, int, str]]:
         """加载并解密内置的默认服务器列表"""
@@ -71,8 +88,9 @@ class ServerManager:
                     servers = load_servers_from_json(json_data)
                     if servers:
                         self.servers = servers
+                        self._merge_special_nodes()
                         logger.info("成功从网络更新并加载服务器列表。")
-                        return servers
+                        return self.servers
             except Exception as e:
                 logger.error(f"解析下载的服务器列表失败: {e}")
 

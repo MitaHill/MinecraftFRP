@@ -11,7 +11,7 @@ from PySide6.QtGui import QCloseEvent
 from src.core.ServerManager import ServerManager
 from src.core.DownloadThread import DownloadThread
 from src.core.UpdateCheckThread import UpdateCheckThread
-from src._version import __version__ as APP_VERSION
+from src.version import VERSION as APP_VERSION
 from src.utils.Crypto import calculate_sha256
 from src.utils.PathUtils import get_resource_path
 from src.gui.main_window.Initialization import pre_ui_initialize, post_ui_initialize
@@ -76,6 +76,12 @@ class PortMappingApp(QWidget):
     def deferred_initialization(self):
         """Deferred initialization: executes heavy tasks after the window is shown."""
         logger.info("Performing deferred initialization...")
+        
+        # Log version information
+        from src.version import get_version_string, VERSION, GIT_HASH
+        version_str = get_version_string()
+        logger.info(f"Application started: {version_str}")
+        logger.info(f"Version: {VERSION}, Git Hash: {GIT_HASH}")
 
         pre_ui_initialize(self)
 

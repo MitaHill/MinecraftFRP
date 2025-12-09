@@ -8,6 +8,7 @@ from src.core.ServerManager import ServerManager
 from src.gui.MainWindow import PortMappingApp
 from src.cli.runner import run_cli
 from src.utils.UpdaterManager import UpdaterManager
+from src.version import VERSION, GIT_HASH, get_version_string
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +29,14 @@ def parse_args(server_choices):
 def main():
     """Main application entry point."""
     signal.signal(signal.SIGINT, sigint_handler)
+    
+    # 输出版本信息
+    version_str = get_version_string()
+    print(f"\n{'='*60}")
+    print(f"  {version_str}")
+    print(f"{'='*60}\n")
+    logger.info(f"Application started: {version_str}")
+    logger.info(f"Version: {VERSION}, Git Hash: {GIT_HASH}")
     
     # 如果是编译版本，提取updater到运行目录
     try:

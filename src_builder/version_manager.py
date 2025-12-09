@@ -129,12 +129,35 @@ class VersionManager:
             return False
     
     def update_version_file(self, version_string):
-        """Update src/_version.py with new version."""
+        """Update src/version.py with build information."""
         try:
-            with open("src/_version.py", "w", encoding="utf-8") as f:
-                f.write(f'__version__ = "{version_string}"\n')
-            print(f"✅ Updated src/_version.py to {version_string}")
+            version_content = f'''"""
+Application version information.
+This file is auto-generated during build process.
+"""
+
+VERSION = "{version_string}"
+GIT_HASH = "{self.git_hash}"
+GIT_BRANCH = "{self.git_branch}"
+BUILD_DATE = "{datetime.utcnow().isoformat()}Z"
+
+def get_version_info():
+    """Get formatted version information."""
+    return {{
+        "version": VERSION,
+        "git_hash": GIT_HASH,
+        "git_branch": GIT_BRANCH,
+        "build_date": BUILD_DATE
+    }}
+
+def get_version_string():
+    """Get version string for display."""
+    return f"MinecraftFRP v{{VERSION}} ({{GIT_HASH}})"
+'''
+            with open("src/version.py", "w", encoding="utf-8") as f:
+                f.write(version_content)
+            print(f"✅ Updated src/version.py to {version_string} ({self.git_hash})")
             return True
         except Exception as e:
-            print(f"❌ ERROR: Could not write to src/_version.py: {e}")
+            print(f"❌ ERROR: Could not write to src/version.py: {e}")
             return False

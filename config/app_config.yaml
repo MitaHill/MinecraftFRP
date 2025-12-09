@@ -16,7 +16,7 @@ network:
   - 3306
   - 8080
   - 25565
-promo_last_shown_date: '2025-12-09'
+promo_last_shown_date: '2025-12-10'
 settings:
   auto_mapping: true
   dark_mode_override: true

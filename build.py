@@ -219,10 +219,12 @@ def main():
     final_exe_path = os.path.join(main_app_build_dir, final_exe_name)
     main_app_options = [
         "--onefile", "--windows-disable-console", "--plugin-enable=pyside6",
-        "--windows-icon-from-ico=logo.ico", f"--output-filename={final_exe_name}",
-        "--include-data-file=frpc.exe=frpc.exe",
-        "--include-data-file=tracert_gui.exe=tracert_gui.exe",
-        "--include-data-file=logo.ico=logo.ico",
+        "--windows-icon-from-ico=base\\logo.ico", f"--output-filename={final_exe_name}",
+        "--include-data-file=base\\frpc.exe=base\\frpc.exe",
+        "--include-data-file=base\\new-frpc.exe=base\\new-frpc.exe",
+        "--include-data-file=base\\tracert_gui.exe=base\\tracert_gui.exe",
+        "--include-data-file=base\\logo.ico=base\\logo.ico",
+        "--include-data-file=config/special_nodes.json=config/special_nodes.json",
         f"--include-data-file={updater_exe_path}=updater.exe",
         "--assume-yes-for-downloads",
         "--show-progress",

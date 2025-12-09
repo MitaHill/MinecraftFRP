@@ -29,7 +29,7 @@ def setup_main_window_ui(window, servers):
 def setup_window_icon(window):
     """设置窗口图标"""
     try:
-        icon_path = Path(get_resource_path("logo.ico"))
+        icon_path = Path(get_resource_path("base\\logo.ico"))
         if icon_path.exists():
             window.setWindowIcon(QIcon(str(icon_path)))
     except Exception as e:

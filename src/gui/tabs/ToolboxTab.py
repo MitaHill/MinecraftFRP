@@ -39,7 +39,7 @@ class ToolboxTab(QWidget):
 
     def open_tracert(self):
         try:
-            exe_path = get_resource_path("tracert_gui.exe")
+            exe_path = get_resource_path("base\\tracert_gui.exe")
             if not os.path.exists(exe_path):
                 QMessageBox.critical(self, "错误", f"tracert_gui.exe 未找到\n路径: {exe_path}")
                 return

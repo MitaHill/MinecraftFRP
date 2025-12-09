@@ -7,11 +7,20 @@ logger = get_logger()
 
 class ConfigManager:
     def __init__(self, filename="frpc.ini"):
-        # 配置文件优先写入系统临时目录，减少被盗取风险
-        tmp_dir = Path(os.environ.get('TEMP', 'tmp'))
-        tmp_dir.mkdir(exist_ok=True)
-        self.filename = tmp_dir / filename
+        # 优先使用系统临时目录，失败则回退到项目 config 目录
         self.mutex = Lock()
+        tmp_dir = Path(os.environ.get('TEMP') or os.environ.get('TMP') or 'tmp')
+        fallback_dir = Path("config")
+        try:
+            tmp_dir.mkdir(exist_ok=True)
+            test_path = tmp_dir / (".wtest_" + filename)
+            with open(test_path, "w", encoding="utf-8") as f:
+                f.write("")
+            os.remove(test_path)
+            self.filename = tmp_dir / filename
+        except Exception:
+            fallback_dir.mkdir(exist_ok=True)
+            self.filename = fallback_dir / filename
 
     def create_config(self, host: str, port: int, token: str, local_port: int, remote_port: int, user_id: int) -> bool:
         with self.mutex:
@@ -40,9 +49,18 @@ local_port={local_port}
 remote_port={remote_port}
 """
             try:
+                # 先用 NamedTemporaryFile 验证路径可写，增加兼容性
+                import tempfile
+                tmp_test = None
+                try:
+                    tmp_test = tempfile.NamedTemporaryFile(prefix="frpc_", suffix=os.path.splitext(str(self.filename))[1] or ".ini", dir=str(Path(self.filename).parent), delete=False)
+                    tmp_test.close()
+                    os.remove(tmp_test.name)
+                except Exception:
+                    pass
                 with open(self.filename, "w", encoding="utf-8") as f:
                     f.write(config_content)
-                # 最小暴露：设置为只读属性（Windows），并尽可能快速删除于启动后
+                # 最小暴露：设置为只读属性（Windows）
                 try:
                     os.chmod(self.filename, 0o444)
                 except Exception:
@@ -50,7 +68,21 @@ remote_port={remote_port}
                 return True
             except Exception as e:
                 logger.error(f"写入配置文件出错: {e}")
-                return False
+                # 回退到项目 config 目录再试一次
+                try:
+                    fallback_dir = Path("config"); fallback_dir.mkdir(exist_ok=True)
+                    fallback_path = fallback_dir / Path(self.filename).name
+                    with open(fallback_path, "w", encoding="utf-8") as f:
+                        f.write(config_content)
+                    try:
+                        os.chmod(fallback_path, 0o444)
+                    except Exception:
+                        pass
+                    self.filename = fallback_path
+                    return True
+                except Exception as e2:
+                    logger.error(f"写入回退配置文件仍失败: {e2}")
+                    return False
 
     def delete_config(self) -> bool:
         with self.mutex:

@@ -128,8 +128,9 @@ class PortMappingApp(QWidget):
             # 固定显示区域，避免触发布局扩张
             lbl.setFixedSize(480, 270)
             lbl.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+            # 关键：保持图片等比例缩放而非裁剪
             lbl.setScaledContents(False)
-            v.addWidget(lbl)
+            v.addWidget(lbl, 0, Qt.AlignCenter)
             # 备注文字（不作为跳转控件）
             remark_lbl = QLabel()
             remark_lbl.setAlignment(Qt.AlignCenter)
@@ -204,14 +205,12 @@ class PortMappingApp(QWidget):
                     except Exception:
                         pass
                 lbl.mousePressEvent = on_image_click
-                # 显示图片（仅缩小不放大）
+                # 显示图片（仅缩小不放大，等比例缩放到适合区域）
                 if pix:
                     try:
                         from PySide6.QtGui import QPixmap
-                        max_w, max_h = 480, 270
-                        target_w = min(max_w, pix.width())
-                        target_h = min(max_h, pix.height())
-                        scaled = pix.scaled(target_w, target_h, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                        # 固定容器480x270，图片按KeepAspectRatio缩放适配
+                        scaled = pix.scaled(480, 270, Qt.KeepAspectRatio, Qt.SmoothTransformation)
                         lbl.setPixmap(scaled)
                     except Exception:
                         lbl.setText('')

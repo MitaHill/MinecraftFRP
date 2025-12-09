@@ -198,13 +198,13 @@ def main():
         "--onefile", 
         "--windows-disable-console", 
         "--output-filename=updater.exe",
-        "--enable-plugin=tk-inter",
+        "--plugin-enable=pyside6",
         "--show-progress",
         "--show-scons",
         "--assume-yes-for-downloads",
         "--jobs=20"
     ] + lto_option
-    if run_nuitka_build(python_exe, "src/tools/updater.py", updater_build_dir, updater_options, nuitka_cache_dir) != 0:
+    if run_nuitka_build(python_exe, "src_updater/main.py", updater_build_dir, updater_options, nuitka_cache_dir) != 0:
         print("\n" + "="*80); print(" BUILD FAILED: Updater compilation failed."); print("="*80); sys.exit(1)
     print(f"\nOK: Updater built successfully at {updater_exe_path}")
 

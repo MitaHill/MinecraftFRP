@@ -1,11 +1,15 @@
 import sys
 import signal
 import argparse
+import logging
 from PySide6.QtWidgets import QApplication
 
 from src.core.ServerManager import ServerManager
 from src.gui.MainWindow import PortMappingApp
 from src.cli.runner import run_cli
+from src.utils.UpdaterManager import UpdaterManager
+
+logger = logging.getLogger(__name__)
 
 def sigint_handler(sig_num, frame):
     """Handles the interrupt signal."""
@@ -24,6 +28,14 @@ def parse_args(server_choices):
 def main():
     """Main application entry point."""
     signal.signal(signal.SIGINT, sigint_handler)
+    
+    # 如果是编译版本，提取updater到运行目录
+    try:
+        UpdaterManager.extract_updater()
+        UpdaterManager.cleanup_old_updater()
+    except Exception as e:
+        # 提取失败不影响主程序运行
+        logger.warning(f"Updater提取失败（不影响正常使用）: {e}")
 
     if len(sys.argv) > 1 and any(arg.startswith('--') for arg in sys.argv[1:]):
         server_manager = ServerManager()

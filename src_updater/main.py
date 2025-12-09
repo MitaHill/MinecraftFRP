@@ -32,19 +32,37 @@ class UpdateWorker(QThread):
     def _wait_for_exit_and_unlock(self):
         self.status.emit(f"等待主程序退出 (PID: {self.pid})...")
         self.progress.emit(10)
-        start = time.time(); timeout = 10
+        start = time.time(); timeout = 15
+        log_interval = 2  # 每2秒记录一次日志
+        last_log = 0
+        
         while psutil.pid_exists(self.pid):
             elapsed = time.time() - start
             if elapsed > timeout:
-                self.log.emit(f"超时 {timeout}s，尝试强制结束进程 {self.pid}")
+                self.log.emit(f"超时 {timeout}s，强制终止进程 {self.pid}")
                 try:
                     p = psutil.Process(self.pid)
-                    for c in p.children(recursive=True): c.kill()
+                    # 先终止所有子进程
+                    for c in p.children(recursive=True):
+                        try:
+                            c.kill()
+                        except:
+                            pass
+                    # 强制终止主进程
                     p.kill()
+                    p.wait(timeout=3)  # 等待进程真正结束
+                    self.log.emit("进程已强制终止")
+                except psutil.NoSuchProcess:
+                    self.log.emit("进程已不存在")
                 except Exception as e:
-                    self.log.emit(f"强制结束失败: {e}")
+                    self.log.emit(f"强制终止失败: {e}")
                 break
-            self.log.emit("等待主程序完全退出...")
+            
+            # 控制日志频率
+            if elapsed - last_log >= log_interval:
+                self.log.emit(f"等待主程序退出... ({int(elapsed)}s/{timeout}s)")
+                last_log = elapsed
+            
             time.sleep(0.5)
             self.progress.emit(10 + int(20 * elapsed / timeout))
         self.log.emit("进程已退出，检查文件锁...")

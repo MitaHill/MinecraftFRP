@@ -420,15 +420,19 @@ class PortMappingApp(QWidget):
         """Releases and executes the updater."""
         self.log("准备执行更新...", "cyan")
         try:
-            updater_path_in_exe = get_resource_path("updater.exe")
+            from src.utils.UpdaterManager import UpdaterManager
             
-            updater_temp_path = os.path.join(tempfile.gettempdir(), "mcfrp_updater.exe")
-            with open(updater_path_in_exe, "rb") as f_in:
-                with open(updater_temp_path, "wb") as f_out:
-                    f_out.write(f_in.read())
+            # 使用运行目录中的updater
+            updater_path = UpdaterManager.get_runtime_updater_path()
             
-            os.chmod(updater_temp_path, 0o755)
-
+            # 如果updater不存在，尝试提取
+            if not os.path.exists(updater_path):
+                self.log("Updater不存在，尝试提取...", "orange")
+                updater_path = UpdaterManager.extract_updater()
+                if not updater_path:
+                    self.log("无法提取updater，更新失败", "red")
+                    return
+            
             pid = str(os.getpid())
             current_exe_path = os.path.abspath(sys.argv[0])
             log_dir_path = os.path.join(os.path.dirname(current_exe_path), "logs")
@@ -436,7 +440,7 @@ class PortMappingApp(QWidget):
             self.log("启动更新进程，本程序即将退出。")
             DETACHED_PROCESS = 0x00000008
             
-            args = [updater_temp_path, pid, current_exe_path, downloaded_path, log_dir_path]
+            args = [updater_path, pid, current_exe_path, downloaded_path, log_dir_path]
             logger.info(f"启动更新器，参数: {args}")
 
             subprocess.Popen(
@@ -445,6 +449,7 @@ class PortMappingApp(QWidget):
                 close_fds=True
             )
             
+            # 主程序正常退出，updater将等待15秒后强制终止
             self.close()
 
         except Exception as e:

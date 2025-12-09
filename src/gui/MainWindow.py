@@ -112,7 +112,15 @@ class PortMappingApp(QWidget):
         """
         # 改为在“推广”标签页推送，锁定其他标签，轮播结束后跳转到“映射”并隐藏“推广”。
         popup_ads = ad_data.get('popup_ads', [])
-        if not self.is_closing and popup_ads:
+        # 检查今日是否已展示推广
+        from datetime import datetime
+        today = datetime.now().strftime("%Y-%m-%d")
+        last_promo_date = self.app_config.get("promo_last_shown_date", "")
+        if not self.is_closing and popup_ads and last_promo_date != today:
+            # 记录今日已展示推广
+            self.app_config["promo_last_shown_date"] = today
+            self._save_app_config()
+
             from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QSizePolicy
             from PySide6.QtCore import QUrl, Qt as QtCore
             # 在显示推广前，先锁定主窗口尺寸

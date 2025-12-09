@@ -63,6 +63,8 @@ class PortMappingApp(QWidget):
         self.app_config = {"settings": {}}
         
         setup_main_window_ui(self, self.SERVERS)
+        # 记录初始窗口尺寸，用于推广结束后恢复
+        self._initial_size = self.size()
         QTimer.singleShot(50, self.deferred_initialization)
 
     def deferred_initialization(self):
@@ -144,6 +146,7 @@ class PortMappingApp(QWidget):
             from PySide6.QtCore import QTimer
             self._promo_ads = popup_ads
             self._promo_idx = 0
+            # 为每次广告创建独立定时器，避免断开连接警告
             self._promo_progress_timer = QTimer()
             self._promo_progress_timer.setInterval(100)
             def open_in_browser(url):
@@ -157,9 +160,11 @@ class PortMappingApp(QWidget):
                 # 停止并断开上一轮进度条连接，重置进度
                 try:
                     self._promo_progress_timer.stop()
-                    self._promo_progress_timer.timeout.disconnect()
                 except Exception:
                     pass
+                # 重建新的定时器而非断开旧信号，避免 RuntimeWarning
+                self._promo_progress_timer = QTimer()
+                self._promo_progress_timer.setInterval(100)
                 progress.setValue(0)
                 if self._promo_idx >= len(self._promo_ads):
                     # 结束：移除推广标签，解锁并跳转到“映射”
@@ -169,6 +174,12 @@ class PortMappingApp(QWidget):
                     for i in range(self.tab_widget.count()):
                         self.tab_widget.setTabEnabled(i, True)
                     self.tab_widget.setCurrentWidget(self.mapping_tab)
+                    # 恢复窗口到初始尺寸
+                    try:
+                        if hasattr(self, '_initial_size'):
+                            self.resize(self._initial_size)
+                    except Exception:
+                        pass
                     return
                 ad = self._promo_ads[self._promo_idx]
                 self._promo_idx += 1

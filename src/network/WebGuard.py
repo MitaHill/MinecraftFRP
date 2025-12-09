@@ -34,15 +34,20 @@ class WebGuard:
                 time.sleep(1)
 
     def _is_web_service(self, port: int) -> bool:
-        # quick deny for common web ports
-        if port in (80, 443, 8080, 8000, 8888):
+        # 快速拒绝常见Web端口
+        if port in (80, 443, 8080, 8000, 8888, 3000, 5000, 9000):
             return True
-        # HTTP HEAD
+        # HTTP检测（含响应体特征）
         try:
             conn = http.client.HTTPConnection('127.0.0.1', port, timeout=2)
-            conn.request('HEAD', '/')
+            conn.request('GET', '/')
             resp = conn.getresponse()
-            if resp.status in (200, 301, 302, 403, 404):
+            body = resp.read(4096).decode('utf-8', errors='ignore').lower()
+            # 检测HTML特征
+            if any(kw in body for kw in ['<html', '<head', '<body', '<!doctype', '<script', 'content-type', 'text/html']):
+                return True
+            # 任意200-5xx响应视为HTTP服务
+            if 200 <= resp.status < 600:
                 return True
         except Exception:
             pass
@@ -51,16 +56,17 @@ class WebGuard:
                 conn.close()
             except Exception:
                 pass
-        # HTTPS TLS + HEAD
+        # HTTPS TLS检测
         try:
             ctx = ssl.create_default_context()
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
             with socket.create_connection(('127.0.0.1', port), timeout=2) as sock:
                 with ctx.wrap_socket(sock, server_hostname='localhost') as ssock:
-                    conn = http.client.HTTPSConnection('127.0.0.1', port, timeout=2, context=ctx)
-                    conn.request('HEAD', '/')
-                    resp = conn.getresponse()
-                    if resp.status in (200, 301, 302, 403, 404):
-                        return True
+                    # TLS握手成功即视为HTTPS服务
+                    return True
+        except ssl.SSLError:
+            return True
         except Exception:
             pass
         return False

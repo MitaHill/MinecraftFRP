@@ -17,10 +17,10 @@ network:
   - 8080
   - 25565
 settings:
-  auto_mapping: false
+  auto_mapping: true
   dark_mode_override: true
   force_dark_mode: true
-  last_server: 阿里云-1
+  last_server: 特殊节点A
 ui:
   ad_update_interval: 3000
   ping_update_interval: 3000

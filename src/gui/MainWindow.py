@@ -79,6 +79,15 @@ class PortMappingApp(QWidget):
         post_ui_initialize(self)
 
         start_lan_poller(self)
+        
+        # 延迟2秒启动后台网络任务，加速初始界面显示
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(2000, self._start_background_tasks)
+        
+        logger.info("Deferred initialization complete.")
+
+    def _start_background_tasks(self):
+        """延迟启动后台网络任务"""
         start_server_list_update(self)
         
         # Setup and start update check thread
@@ -92,8 +101,6 @@ class PortMappingApp(QWidget):
         self.ad_thread = AdThread()
         self.ad_thread.finished.connect(self._on_ads_ready)
         self.ad_thread.start()
-        
-        logger.info("Deferred initialization complete.")
 
     def _on_ads_ready(self, ad_data):
         """

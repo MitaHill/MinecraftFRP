@@ -108,12 +108,15 @@ class PortMappingApp(QWidget):
         # 改为在“推广”标签页推送，锁定其他标签，轮播结束后跳转到“映射”并隐藏“推广”。
         popup_ads = ad_data.get('popup_ads', [])
         if not self.is_closing and popup_ads:
-            from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel
+            from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QSizePolicy
             from PySide6.QtCore import QUrl
             promo_tab = QWidget()
             v = QVBoxLayout(promo_tab)
             lbl = QLabel()
             lbl.setAlignment(Qt.AlignCenter)
+            lbl.setMaximumSize(480, 270)
+            lbl.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+            lbl.setScaledContents(False)
             v.addWidget(lbl)
             # 备注文字（不作为跳转控件）
             remark_lbl = QLabel()

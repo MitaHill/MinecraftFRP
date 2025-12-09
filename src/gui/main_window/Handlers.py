@@ -51,16 +51,18 @@ def start_map(window):
         
         # 判断是否为特殊节点（名称包含“特殊节点”）
         is_special = "特殊节点" in server_name
-        config_path = "config/frpc.ini"
         if is_special:
             # 使用 TOML 与 new-frpc.exe
             cfg = ConfigManager("frpc.toml")
             ok = cfg.create_config(host, port, "", window.mapping_tab.port_edit.text().strip(), remote_port, random.randint(10000, 99999))
-            config_path = "config/frpc.toml"
+            config_path = str(cfg.filename)
             window.current_server_is_special = True
+            window._current_cfg_manager = cfg
         else:
             ok = window.config_manager.create_config(host, port, token, window.mapping_tab.port_edit.text().strip(), remote_port, random.randint(10000, 99999))
+            config_path = str(window.config_manager.filename)
             window.current_server_is_special = False
+            window._current_cfg_manager = window.config_manager
         
         if not ok:
             QMessageBox.warning(window, "错误", "无法写入配置文件，请检查权限")
@@ -97,13 +99,14 @@ def start_frpc_thread(window, config_path: str):
     window.th.error.connect(lambda m: on_mapping_error(window, m))
     window.th.terminated.connect(window.onFrpcTerminated)
     window.th.start()
-    # 安全策略：在启动后1秒尝试删除配置文件，降低被复制风险
+    # 安全策略：在启动后1秒尝试删除当前使用的配置文件（仅在非特殊情况下执行，特殊节点需保留更久）
     try:
         from PySide6.QtCore import QTimer
         import os
         def _safe_delete():
             try:
-                if os.path.exists(config_path):
+                # 特殊节点下保留文件，避免“找不到配置文件”问题
+                if not getattr(window, 'current_server_is_special', False) and os.path.exists(config_path):
                     try:
                         os.chmod(config_path, 0o600)
                     except Exception:

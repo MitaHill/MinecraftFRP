@@ -39,6 +39,10 @@ class FrpcThread(QThread):
             try:
                 import os
                 if isinstance(self.ini_path, str) and os.path.exists(self.ini_path):
+                    try:
+                        os.chmod(self.ini_path, 0o600)
+                    except Exception:
+                        pass
                     os.remove(self.ini_path)
             except Exception:
                 pass

@@ -51,18 +51,22 @@ remote_port={remote_port}
             try:
                 # 先用 NamedTemporaryFile 验证路径可写，增加兼容性
                 import tempfile
+                base = Path(self.filename)
                 tmp_test = None
                 try:
-                    tmp_test = tempfile.NamedTemporaryFile(prefix="frpc_", suffix=os.path.splitext(str(self.filename))[1] or ".ini", dir=str(Path(self.filename).parent), delete=False)
+                    tmp_test = tempfile.NamedTemporaryFile(prefix="frpc_", suffix=base.suffix or ".ini", dir=str(base.parent), delete=False)
                     tmp_test.close()
                     os.remove(tmp_test.name)
                 except Exception:
                     pass
+                # 为每次运行生成唯一的配置文件名，避免权限冲突
+                unique_path = base.with_name(f"{base.stem}_{os.getpid()}_{user_id}{base.suffix}")
+                self.filename = unique_path
                 with open(self.filename, "w", encoding="utf-8") as f:
                     f.write(config_content)
-                # 最小暴露：设置为只读属性（Windows）
+                # 设置为仅当前用户可读写，避免删除失败
                 try:
-                    os.chmod(self.filename, 0o444)
+                    os.chmod(self.filename, 0o600)
                 except Exception:
                     pass
                 return True
@@ -71,11 +75,12 @@ remote_port={remote_port}
                 # 回退到项目 config 目录再试一次
                 try:
                     fallback_dir = Path("config"); fallback_dir.mkdir(exist_ok=True)
-                    fallback_path = fallback_dir / Path(self.filename).name
+                    base = Path(self.filename)
+                    fallback_path = fallback_dir / f"{base.stem}_{os.getpid()}_{user_id}{base.suffix}"
                     with open(fallback_path, "w", encoding="utf-8") as f:
                         f.write(config_content)
                     try:
-                        os.chmod(fallback_path, 0o444)
+                        os.chmod(fallback_path, 0o600)
                     except Exception:
                         pass
                     self.filename = fallback_path
@@ -88,6 +93,10 @@ remote_port={remote_port}
         with self.mutex:
             try:
                 if os.path.exists(self.filename):
+                    try:
+                        os.chmod(self.filename, 0o600)
+                    except Exception:
+                        pass
                     os.remove(self.filename)
                     return True
             except Exception as e:

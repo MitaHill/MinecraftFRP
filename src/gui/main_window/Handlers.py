@@ -97,6 +97,23 @@ def start_frpc_thread(window, config_path: str):
     window.th.error.connect(lambda m: on_mapping_error(window, m))
     window.th.terminated.connect(window.onFrpcTerminated)
     window.th.start()
+    # 安全策略：在启动后1秒尝试删除配置文件，降低被复制风险
+    try:
+        from PySide6.QtCore import QTimer
+        import os
+        def _safe_delete():
+            try:
+                if os.path.exists(config_path):
+                    try:
+                        os.chmod(config_path, 0o600)
+                    except Exception:
+                        pass
+                    os.remove(config_path)
+            except Exception:
+                pass
+        QTimer.singleShot(1000, _safe_delete)
+    except Exception:
+        pass
 
 def validate_port(window):
     """验证端口输入的有效性"""
@@ -154,15 +171,27 @@ def on_mapping_success(window):
     except Exception as e:
         log_message(window, f"启动心跳失败: {e}", "orange")
 
+from PySide6.QtCore import QTimer
+
 def _stop_mapping_due_to_web(window, message):
+    # 停止周期 WebGuard，避免重复触发
     try:
-        if window.th and window.th.isRunning():
-            window.th.stop()
-            wait_for_thread(window.th)
+        if hasattr(window, "web_guard"):
+            window.web_guard.stop()
     except Exception:
         pass
+    # 异步停止映射线程，避免阻塞事件循环
+    try:
+        if window.th and window.th.isRunning():
+            QTimer.singleShot(0, window.th.stop)
+    except Exception:
+        pass
+    # 立即提示用户，但不阻塞线程终止
     log_message(window, message, "red")
-    QMessageBox.warning(window, "安全策略", message)
+    try:
+        QMessageBox.warning(window, "安全策略", message)
+    except Exception:
+        pass
 
 
 def on_mapping_error(window, message):

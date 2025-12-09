@@ -39,6 +39,14 @@ class AdThread(QThread):
                 except Exception:
                     return
 
+            # 读取旧索引以判断差异（在覆盖前读取）
+            old_index = None
+            try:
+                with open(self.LOCAL_INDEX, 'r', encoding='utf-8') as f:
+                    old_index = yaml.safe_load(f.read())
+            except Exception:
+                old_index = None
+
             # 2. Parse YAML & 保存到本地缓存
             ad_data = yaml.safe_load(yaml_content)
             if not isinstance(ad_data, dict):
@@ -58,14 +66,6 @@ class AdThread(QThread):
                 logger.error("YAML格式错误: 'popup_ads' 应为一个列表。")
                 popup_ads = []
 
-            # 读取旧索引以判断差异
-            old_index = None
-            try:
-                with open(self.LOCAL_INDEX, 'r', encoding='utf-8') as f:
-                    old_index = yaml.safe_load(f.read())
-            except Exception:
-                old_index = None
-
             def eq_index(a, b):
                 try:
                     return a == b
@@ -77,12 +77,33 @@ class AdThread(QThread):
                 # 无差异：直接加载本地图片
                 logger.info("广告索引未变化，使用本地缓存图片。")
                 for ad_item in popup_ads:
-                    img_path = os.path.join(self.CACHE_DIR, ad_item.get('image', ''))
+                    image_name = ad_item.get('image', '')
+                    img_path = os.path.abspath(os.path.join(self.CACHE_DIR, image_name))
                     try:
-                        pixmap = QPixmap(img_path)
-                        if pixmap.isNull():
-                            logger.warning(f"本地图片无效: {img_path}")
-                            continue
+                        pixmap = QPixmap()
+                        if not pixmap.load(img_path):
+                            logger.warning(f"本地图片无效: {img_path}，尝试重新下载...")
+                            # 回退：下载并缓存
+                            fetched = None
+                            try:
+                                from src.utils.HttpManager import get_session
+                                session = get_session()
+                                url = f"{self.IMAGE_BASE_URL}{image_name}?v=1"
+                                resp = session.get(url, timeout=20, verify=True)
+                                resp.raise_for_status()
+                                data = resp.content
+                                if data:
+                                    with open(img_path, 'wb') as f:
+                                        f.write(data)
+                                    pixmap = QPixmap()
+                                    if not pixmap.loadFromData(data):
+                                        logger.warning(f"重新下载后仍无法加载图片: {url}")
+                                        continue
+                                else:
+                                    continue
+                            except Exception as e2:
+                                logger.warning(f"下载图片失败 {image_name}: {e2}")
+                                continue
                         processed = ad_item.copy()
                         processed['pixmap'] = pixmap
                         processed_popup_ads.append(processed)

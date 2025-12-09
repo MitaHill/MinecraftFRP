@@ -571,3 +571,92 @@ python build.py --skip-updater
 - **Web 服务检测**: 实时监控映射端口，发现 HTTP 服务立即终止
 - **配置文件安全**: 使用临时文件+延迟删除，防止配置泄露
 - **文件锁定**: 配置文件在使用期间锁定，防止外部读取
+
+## 23. 联机厅（Online Lobby）系统设计与实施计划
+
+### 23.1 目标与范围
+- 为玩家提供一个“可发现、可加入、可筛选”的公共房间大厅，支持公开/私有两种模式。
+- 保障大厅数据的实时性（心跳<=30s）、稳定性（断线自愈）、安全性（防滥用、防伪造）。
+- 与现有客户端能力无缝衔接：沿用 HeartbeatManager、FRPC 管理、广告与更新体系，不破坏当前流程。
+
+### 23.2 客户端现状与可复用模块
+- HeartbeatManager（heartbeat_manager.py）：已具备房间发布、DELETE 删除、30s 心跳与退出清理能力。
+- MainWindow（src/gui/MainWindow.py）：已在映射启动/终止时对心跳做集成调用；具备统一日志、线程管理与版本信息输出。
+- 特殊节点：以 A、B、C... 命名，界面样式与普通节点一致，始终排在列表底部。
+
+### 23.3 数据模型（客户端 -> 服务器）
+- Room 对象（POST/DELETE/Heartbeat）：
+  {
+    "remote_port": int,           # 服务器分配的远端端口
+    "node_id": int,               # 节点ID（A=1，B=2...以服务端映射为准）
+    "room_name": str,             # 房间显示名
+    "game_version": str,          # 游戏版本（可未知）
+    "player_count": int,          # 当前人数
+    "max_players": int,           # 最大人数
+    "description": str,           # 备注
+    "is_public": bool,            # 是否公开
+    "host_player": str,           # 主机玩家ID（已做合规校验）
+    "server_addr": str,           # 节点出口地址（非玩家真实IP）
+    "full_room_code": str         # 由客户端内部生成的幂等键："{remote_port}_{node_id}"
+  }
+- 约束：full_room_code 作为幂等键；重复 POST 视作 upsert；DELETE 需提供同样键。
+
+### 23.4 客户端工作流（状态机）
+1) StartMapping -> Submit(POST) -> Heartbeat(30s) -> StopMapping(DELETE) -> Idle
+2) 进程守护：若 FRPC 退出/异常，自动停止心跳并触发 DELETE；重连时自动重新发布+续心跳。
+3) UI：发布成功/失败、心跳成功/失败均通过统一 Logger 记录；速率限制避免刷屏。
+
+### 23.5 服务端接口（建议）
+- REST
+  - POST   /api/lobby/rooms         # upsert 创建/续签（携带 full_room_code）
+  - DELETE /api/lobby/rooms         # 删除（按 full_room_code）
+  - GET    /api/lobby/rooms         # 查询（支持分页、筛选：version、node、keyword、is_public）
+  - GET    /api/lobby/nodes         # 节点元数据（展示名称、地区、负载、是否特殊节点）
+- WebSocket（可选增强）
+  - /api/lobby/stream               # 房间增删改推送，客户端用于实时刷新列表
+- 鉴权与防伪造（推荐最小闭环方案）
+  - Header：x-app=MCFRP，x-ts=unix_ms，x-sign=HMAC_SHA256(body+ts, shared_key)
+  - shared_key 按版本轮换；客户端内做混淆拼接；服务端允许±60s 时间偏差。
+  - 频控：同一IP 1min 内创建≤N、心跳≤120/小时；可灰度动态调整。
+
+### 23.6 心跳与清理策略
+- 心跳周期：30s；服务端容忍窗口：90s 未收到则标记下线、120s 清理。
+- 幂等：相同 full_room_code 在有效期内 POST 直接覆盖并续期。
+- 回收：DELETE 请求即刻下架；客户端异常退出由服务端超时清理兜底。
+
+### 23.7 安全与反滥用
+- 本地 WebGuard：映射前/映射中检测映射端口是否提供 HTTP/HTTPS，命中则阻断映射并提示。
+- 信息最小化：大厅仅展示 relay 地址与房间信息，不暴露玩家真实 IP/端口。
+- 反爬与滥用：分页+签名校验+IP 频控+可选验证码（仅创建接口），服务端侧记录异常指纹并黑名单。
+- 配置防盗：FRPC TOML 采用“写入->启动->延迟删除”的短生命周期策略；尽量短时落盘并加文件锁。
+
+### 23.8 匹配与发现（体验层）
+- 筛选/排序：按延迟（近似）、版本、节点、人数、关键字；默认推荐低负载、低延迟房间。
+- 标签化：房间可选标签（生存/建筑/PVP/模组名），便于发现；服务端侧做简单词频统计。
+- 多端一致：PC UI 与（未来）Web 列表协议一致，便于复用。
+
+### 23.9 断线自愈与容错
+- 客户端对网络错误做指数退避（1s/2s/4s..上限15s），但不阻塞 UI。
+- 进程级事件：FRPC 退出->立即停止心跳+发起 DELETE；重连成功后自动恢复心跳。
+- 日志：失败原因与上下文完整记录，且 50s 内重复报文仅记录一次。
+
+### 23.10 与现有规范的兼容
+- 特殊节点维持 A/B/C... 命名，展示与普通节点一致，排序固定在列表末尾（不硬编码地址）。
+- 完全遵循模块化：新增客户端逻辑放入 src/network/LobbyClient.py、src/core/LobbyService.py（或等价拆分）。
+- GUI 改动最小化：映射 Tab 新增“发布到联机厅”开关与房间信息表单（默认读取缓存）。
+
+### 23.11 实施里程碑（客户端）
+- M1（D+2）: 抽象 LobbyClient，改造 HeartbeatManager 以支持签名与幂等键；最小闭环联调。
+- M2（D+5）: GUI 表单、房间列表页（仅本地渲染）、错误与速率限制完善；日志与埋点。
+- M3（D+8）: WebSocket 增强（可选）、搜索筛选、排序策略；异常自愈与A/B测试开关。
+- M4（D+10）: 文档与自动化测试补充、性能与稳定性压测、灰度发布。
+
+### 23.12 服务端参考实现（建议）
+- 技术栈任选（Go/FastAPI/Node），持久层 MySQL/SQLite + Redis（心跳TTL）；Nginx 限流与缓存。
+- 数据表：rooms(full_room_code PK, meta..., updated_at idx)、nodes(id PK, meta...)；rooms 按 updated_at 建索引。
+- 清理任务：每60s 扫描 rooms，过期清理；指标上报。
+
+### 23.13 监控与可观测性
+- 指标：活跃房间数、创建/删除QPS、心跳成功率、超时清理数、平均心跳延迟。
+- 日志：按 request-id 关联；异常类型聚合；可选接入Sentry/Prometheus/Grafana。
+- 应急：灰度开关、签名轮换、黑名单实时下发与回滚预案。

@@ -67,3 +67,6 @@ secrets.yaml
 
 .gemini/
 gha-creds-*.json
+
+# Local CI/CD config with credentials
+cicd.yaml

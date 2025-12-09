@@ -1,5 +1,6 @@
 import os
 import sys
+import argparse
 import subprocess
 import yaml
 import hashlib
@@ -155,6 +156,14 @@ def run_nuitka_build(python_exe, script_path, output_dir, options, cache_dir):
     print("-"*80)
     return run_command(command, cache_dir=cache_dir)
 
+def parse_args(config):
+    parser = argparse.ArgumentParser(description="MinecraftFRP build & deploy")
+    parser.add_argument("--fast", action="store_true", help="Enable fast build (no LTO)")
+    parser.add_argument("--upload", action="store_true", help="Upload artifacts via SSH after build")
+    parser.add_argument("--ssh-user", type=str, help="SSH username (overrides cicd.yaml)")
+    parser.add_argument("--ssh-pass", type=str, help="SSH password (overrides cicd.yaml)")
+    return parser.parse_args()
+
 def main():
     """Main build and deploy script logic."""
     print("="*80); print(" MinecraftFRP Build & Deploy Script"); print("="*80)
@@ -165,14 +174,12 @@ def main():
     except Exception as e:
         print(f"ERROR: Could not load cicd.yaml: {e}"); sys.exit(1)
 
-    ssh_user, ssh_pass, deploy_choice = None, None, 'n'
-    fast_build_choice = input("Enable fast build mode (faster compile, slower exe)? (y/n): ").lower().strip()
-    deploy_choice = input("Will this run include deployment to SSH server? (y/n): ").lower().strip()
-    if deploy_choice == 'y':
-        default_user = config.get('ssh', {}).get('user', '')
-        ssh_user = input(f"Enter SSH username [{default_user}]: ").strip() or default_user
-        print("\n" + "!"*80); print("! WARNING: Your password will be displayed on screen..."); print("!"*80)
-        ssh_pass = input("Enter SSH password: ")
+    args = parse_args(config)
+    ssh_cfg = config.get('ssh', {})
+    ssh_user = args.ssh_user or ssh_cfg.get('user')
+    ssh_pass = args.ssh_pass or ssh_cfg.get('password')
+    deploy_choice = 'y' if args.upload else 'n'
+    fast_build_choice = 'y' if args.fast else 'n'
     
     print("\nStarting build process...")
     python_exe = sys.executable
@@ -191,13 +198,13 @@ def main():
         "--onefile", 
         "--windows-disable-console", 
         "--output-filename=updater.exe",
-        "--enable-plugin=tk-inter",
+        "--plugin-enable=pyside6",
         "--show-progress",
         "--show-scons",
         "--assume-yes-for-downloads",
         "--jobs=20"
     ] + lto_option
-    if run_nuitka_build(python_exe, "src/tools/updater.py", updater_build_dir, updater_options, nuitka_cache_dir) != 0:
+    if run_nuitka_build(python_exe, "src_updater/main.py", updater_build_dir, updater_options, nuitka_cache_dir) != 0:
         print("\n" + "="*80); print(" BUILD FAILED: Updater compilation failed."); print("="*80); sys.exit(1)
     print(f"\nOK: Updater built successfully at {updater_exe_path}")
 
@@ -219,10 +226,12 @@ def main():
     final_exe_path = os.path.join(main_app_build_dir, final_exe_name)
     main_app_options = [
         "--onefile", "--windows-disable-console", "--plugin-enable=pyside6",
-        "--windows-icon-from-ico=logo.ico", f"--output-filename={final_exe_name}",
-        "--include-data-file=frpc.exe=frpc.exe",
-        "--include-data-file=tracert_gui.exe=tracert_gui.exe",
-        "--include-data-file=logo.ico=logo.ico",
+        "--windows-icon-from-ico=base\\logo.ico", f"--output-filename={final_exe_name}",
+        "--include-data-file=base\\frpc.exe=base\\frpc.exe",
+        "--include-data-file=base\\new-frpc.exe=base\\new-frpc.exe",
+        "--include-data-file=base\\tracert_gui.exe=base\\tracert_gui.exe",
+        "--include-data-file=base\\logo.ico=base\\logo.ico",
+        "--include-data-file=config/special_nodes.json=config/special_nodes.json",
         f"--include-data-file={updater_exe_path}=updater.exe",
         "--assume-yes-for-downloads",
         "--show-progress",
@@ -260,7 +269,11 @@ def main():
     
     deployment_successful = False
     if deploy_choice == 'y':
-        deployment_successful = upload_artifacts(config['ssh'], ssh_user, ssh_pass, final_exe_path, version_json_path)
+        if not ssh_user or not ssh_pass:
+            print("ERROR: SSH credentials missing. Provide via cicd.yaml or --ssh-user/--ssh-pass.")
+            deployment_successful = False
+        else:
+            deployment_successful = upload_artifacts(config['ssh'], ssh_user, ssh_pass, final_exe_path, version_json_path)
     else:
         print("\nSkipping deployment.")
 

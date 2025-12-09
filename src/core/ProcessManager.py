@@ -23,13 +23,13 @@ class ProcessManager:
         启动 frpc 进程并生成输出行。
         
         Args:
-            ini_path: 配置文件路径
+            ini_path: 配置文件路径（.ini 使用 frpc.exe，.toml 使用 new-frpc.exe）
             
         Yields:
             进程的标准输出行 (stdout)
             
         Raises:
-            FileNotFoundError: 如果 frpc.exe 未找到
+            FileNotFoundError: 如果对应的 frpc 可执行文件未找到
             Exception: 其他启动错误
         """
         self._stop_event.clear()
@@ -39,9 +39,11 @@ class ProcessManager:
         si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
         creation_flags = subprocess.CREATE_NO_WINDOW
         
-        frpc_exe = get_resource_path("frpc.exe")
+        # 根据配置后缀选择可执行文件
+        exe_name = "new-frpc.exe" if str(ini_path).endswith(".toml") else "frpc.exe"
+        frpc_exe = get_resource_path(f"base\\{exe_name}")
         if not os.path.exists(frpc_exe):
-            raise FileNotFoundError(f"frpc.exe 未找到: {frpc_exe}")
+            raise FileNotFoundError(f"{exe_name} 未找到: {frpc_exe}")
 
         try:
             with self._lock:
@@ -55,7 +57,7 @@ class ProcessManager:
                     bufsize=1  # 行缓冲
                 )
             
-            logger.info(f"已启动 frpc 进程 (PID: {self._process.pid})")
+            logger.info(f"已启动 {exe_name} 进程 (PID: {self._process.pid})")
 
             # 实时读取输出
             # 注意: Popen.stdout 是一个迭代器，但在 process 结束前会阻塞等待新行
@@ -98,3 +100,8 @@ class ProcessManager:
                     logger.error(f"清理进程时出错: {e}")
                 finally:
                     self._process = None
+
+    def is_running(self) -> bool:
+        """返回当前进程是否仍在运行"""
+        with self._lock:
+            return bool(self._process and self._process.poll() is None)

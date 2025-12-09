@@ -29,6 +29,12 @@ def stop_lan_poller(window, wait=True):
 
 def load_ping_values(window):
     """加载并更新服务器延迟"""
+    # 优先读取缓存，立即填充界面
+    from src.network.PingUtils import load_ping_data
+    cached = load_ping_data()
+    if cached:
+        update_server_combo(window, cached)
+    # 后台异步刷新真实延迟
     window.ping_thread = PingThread(window.SERVERS)
     window.ping_thread.ping_results.connect(window.update_server_combo)
     window.ping_thread.start()

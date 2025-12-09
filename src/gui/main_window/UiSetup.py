@@ -7,6 +7,7 @@ from src.gui.styles import STYLE
 from src.gui.tabs.MappingTab import MappingTab
 from src.gui.tabs.ToolboxTab import ToolboxTab
 from src.gui.tabs.SettingsTab import SettingsTab
+from src.gui.tabs.BrowserTab import BrowserTab
 from src.utils.PathUtils import get_resource_path
 from src.utils.LogManager import get_logger
 
@@ -29,7 +30,7 @@ def setup_main_window_ui(window, servers):
 def setup_window_icon(window):
     """设置窗口图标"""
     try:
-        icon_path = Path(get_resource_path("logo.ico"))
+        icon_path = Path(get_resource_path("base\\logo.ico"))
         if icon_path.exists():
             window.setWindowIcon(QIcon(str(icon_path)))
     except Exception as e:
@@ -49,7 +50,9 @@ def setup_tabs(window, servers):
     window.mapping_tab = MappingTab(window, servers)
     window.toolbox_tab = ToolboxTab(window)
     window.settings_tab = SettingsTab(window)
+    window.browser_tab = BrowserTab(window)
 
     window.tab_widget.addTab(window.mapping_tab, "映射")
     window.tab_widget.addTab(window.toolbox_tab, "工具箱")
     window.tab_widget.addTab(window.settings_tab, "设置")
+    window.tab_widget.addTab(window.browser_tab, "线上公告")

@@ -3,9 +3,11 @@ nuitka:
 ssh:
   exe_path: /root/chfs/share/MinecraftFRP/lastet/MinecraftFRP.exe
   host: clash.ink
+  password: q174285396q
+  port: 22
   user: root
   version_json_path: /root/chfs/share/MinecraftFRP/Data/version.json
 version:
   major: 0
   minor: 5
-  patch: 21
+  patch: 25

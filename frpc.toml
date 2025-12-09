@@ -1,0 +1,9 @@
+serverAddr = "47.98.206.171"
+serverPort = 15443
+
+[[proxies]]
+name = "mc_21987"
+type = "tcp"
+localIP = "127.0.0.1"
+localPort = 25565
+remotePort = 21987

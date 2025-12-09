@@ -15,7 +15,7 @@ def pre_ui_initialize(window):
     initialize_managers(window)
     load_configuration(window)
     
-    if not os.path.exists(get_resource_path("frpc.exe")):
+    if not os.path.exists(get_resource_path("base\\frpc.exe")):
         QMessageBox.critical(window, "错误", "frpc.exe 未找到，程序即将退出。")
         sys.exit(1)
 

@@ -1,12 +1,16 @@
 import random
+import getpass
 from PySide6.QtCore import QTimer, QMutexLocker
 from PySide6.QtWidgets import QMessageBox, QApplication
 from PySide6.QtGui import QTextCursor
 
 from src.core.FrpcThread import FrpcThread
+from src.core.ConfigManager import ConfigManager
 from src.utils.PortGenerator import gen_port
 from src.gui.main_window.Threads import wait_for_thread
 from src.gui.styles import STYLE
+from src.network.WebGuard import WebGuard
+from heartbeat_manager import HeartbeatManager
 
 def set_port(window, port):
     """当检测到端口时，设置端口并触发自动映射"""
@@ -45,23 +49,74 @@ def start_map(window):
         server_name, host, port, token = get_server_details(window)
         remote_port = gen_port()
         
-        if not window.config_manager.create_config(host, port, token, window.mapping_tab.port_edit.text().strip(), remote_port, random.randint(10000, 99999)):
+        # 判断是否为特殊节点（名称包含“特殊节点”）
+        is_special = "特殊节点" in server_name
+        if is_special:
+            # 使用 TOML 与 new-frpc.exe
+            cfg = ConfigManager("frpc.toml")
+            ok = cfg.create_config(host, port, "", window.mapping_tab.port_edit.text().strip(), remote_port, random.randint(10000, 99999))
+            config_path = str(cfg.filename)
+            window.current_server_is_special = True
+            window._current_cfg_manager = cfg
+        else:
+            ok = window.config_manager.create_config(host, port, token, window.mapping_tab.port_edit.text().strip(), remote_port, random.randint(10000, 99999))
+            config_path = str(window.config_manager.filename)
+            window.current_server_is_special = False
+            window._current_cfg_manager = window.config_manager
+        
+        if not ok:
             QMessageBox.warning(window, "错误", "无法写入配置文件，请检查权限")
             return
 
+        # 保存上下文供心跳使用
+        window._current_mapping = {
+            "server_name": server_name,
+            "host": host,
+            "remote_port": remote_port
+        }
+
         window.link = f"{host}:{remote_port}"
-        start_frpc_thread(window)
+        start_frpc_thread(window, config_path)
         log_message(window, f"开始映射本地端口 {window.mapping_tab.port_edit.text().strip()} 到 {window.link}", "blue")
 
-def start_frpc_thread(window):
+        # 启动WebGuard周期检测，防止用户建站
+        try:
+            window.web_guard = WebGuard(
+                port_getter=lambda: int(window.mapping_tab.port_edit.text().strip() or '0'),
+                stop_callback=lambda msg: _stop_mapping_due_to_web(window, msg),
+                interval_sec=30,
+            )
+            window.web_guard.start()
+        except Exception:
+            pass
+
+def start_frpc_thread(window, config_path: str):
     """初始化并启动FrpcThread"""
-    window.th = FrpcThread("config/frpc.ini")
+    window.th = FrpcThread(config_path)
     window.th.out.connect(window.mapping_tab.log_text.append)
     window.th.warn.connect(lambda m: log_message(window, m, "red"))
     window.th.success.connect(lambda: on_mapping_success(window))
     window.th.error.connect(lambda m: on_mapping_error(window, m))
     window.th.terminated.connect(window.onFrpcTerminated)
     window.th.start()
+    # 安全策略：在启动后1秒尝试删除当前使用的配置文件（仅在非特殊情况下执行，特殊节点需保留更久）
+    try:
+        from PySide6.QtCore import QTimer
+        import os
+        def _safe_delete():
+            try:
+                # 特殊节点下保留文件，避免“找不到配置文件”问题
+                if not getattr(window, 'current_server_is_special', False) and os.path.exists(config_path):
+                    try:
+                        os.chmod(config_path, 0o600)
+                    except Exception:
+                        pass
+                    os.remove(config_path)
+            except Exception:
+                pass
+        QTimer.singleShot(1000, _safe_delete)
+    except Exception:
+        pass
 
 def validate_port(window):
     """验证端口输入的有效性"""
@@ -88,6 +143,59 @@ def on_mapping_success(window):
     # 自动复制到剪贴板
     QApplication.clipboard().setText(window.link)
     log_message(window, "映射地址已自动复制到剪贴板", "green")
+
+    # 若为特殊节点，启动房间心跳
+    try:
+        if getattr(window, "current_server_is_special", False) and hasattr(window, "_current_mapping"):
+            # 特殊节点名到 node_id 的映射（可根据需要调整）
+            special_node_ids = {"特殊节点A": 5, "特殊节点B": 6}
+            server_name = window._current_mapping.get("server_name")
+            node_id = special_node_ids.get(server_name)
+            if node_id:
+                if not hasattr(window, "heartbeat_manager"):
+                    window.heartbeat_manager = HeartbeatManager(
+                        "https://lytapi.asia/api.php",
+                        lambda msg, c=None: log_message(window, msg, c),
+                        lambda: bool(window.th and window.th.manager.is_running())
+                    )
+                room_info = {
+                    "full_room_code": f"{window._current_mapping['remote_port']}_{node_id}",
+                    "room_name": f"{server_name}的房间",
+                    "game_version": "未知版本",
+                    "player_count": 1,
+                    "max_players": 20,
+                    "description": f"通过{server_name}连接",
+                    "is_public": True,
+                    "host_player": getpass.getuser() or "玩家",
+                    "server_addr": window._current_mapping["host"],
+                }
+                window.heartbeat_manager.submit_room_info(room_info, start_heartbeat=True)
+                log_message(window, "已启动联机大厅心跳", "blue")
+    except Exception as e:
+        log_message(window, f"启动心跳失败: {e}", "orange")
+
+from PySide6.QtCore import QTimer
+
+def _stop_mapping_due_to_web(window, message):
+    # 停止周期 WebGuard，避免重复触发
+    try:
+        if hasattr(window, "web_guard"):
+            window.web_guard.stop()
+    except Exception:
+        pass
+    # 异步停止映射线程，避免阻塞事件循环
+    try:
+        if window.th and window.th.isRunning():
+            QTimer.singleShot(0, window.th.stop)
+    except Exception:
+        pass
+    # 立即提示用户，但不阻塞线程终止
+    log_message(window, message, "red")
+    try:
+        QMessageBox.warning(window, "安全策略", message)
+    except Exception:
+        pass
+
 
 def on_mapping_error(window, message):
     """映射失败时的UI更新"""

@@ -179,6 +179,9 @@ class PortMappingApp(QWidget):
                 self._promo_progress_timer = QTimer()
                 self._promo_progress_timer.setInterval(100)
                 progress.setValue(0)
+                # 重置加速冷却时间
+                if hasattr(self, '_promo_last_speedup_time'):
+                    delattr(self, '_promo_last_speedup_time')
                 if self._promo_idx >= len(self._promo_ads):
                     # 结束：移除推广标签，解锁并跳转到“映射”
                     idx = self.tab_widget.indexOf(promo_tab)
@@ -227,21 +230,36 @@ class PortMappingApp(QWidget):
                 # 启动新的进度条动画
                 dur_ms = max(1000, int(ad.get('duration', 5)) * 1000)
                 elapsed = {"v": 0}
+                skip_triggered = {"flag": False}
                 def tick():
+                    if skip_triggered["flag"]:
+                        return
                     elapsed["v"] += 100
                     pct = min(100, int(elapsed["v"] * 100 / dur_ms))
                     progress.setValue(pct)
                 self._promo_progress_timer.timeout.connect(tick)
                 self._promo_progress_timer.start()
-                # 加速按钮：每次点击让进度条直接前进5%
+                # 加速按钮：3秒冷却，每次随机前进3%-8%，防止溢出触发跳过
                 def on_speedup():
-                    elapsed["v"] += dur_ms * 0.05
-                    if elapsed["v"] >= dur_ms:
-                        # 达到100%，立即切到下一张
-                        self._promo_progress_timer.stop()
-                        show_next()
+                    import time, random
+                    now = time.time()
+                    if hasattr(self, '_promo_last_speedup_time'):
+                        if now - self._promo_last_speedup_time < 3.0:
+                            return  # 冷却中
+                    self._promo_last_speedup_time = now
+                    # 随机前进3%-8%
+                    speedup_pct = random.uniform(0.03, 0.08)
+                    elapsed["v"] += dur_ms * speedup_pct
+                    # 溢出检测：不超过95%，避免意外触发结束
+                    if elapsed["v"] >= dur_ms * 0.95:
+                        elapsed["v"] = dur_ms * 0.95
                 speedup_btn.clicked.connect(on_speedup)
-                QTimer.singleShot(dur_ms, show_next)
+                
+                def on_timeout():
+                    if not skip_triggered["flag"]:
+                        skip_triggered["flag"] = True
+                        show_next()
+                QTimer.singleShot(dur_ms, on_timeout)
             show_next()
         # 滚动广告仍显示在映射标签
         self.scrolling_ads = ad_data.get('scrolling_ads', [])

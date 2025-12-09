@@ -159,7 +159,6 @@ class PortMappingApp(QWidget):
             from PySide6.QtCore import QTimer
             self._promo_ads = popup_ads
             self._promo_idx = 0
-            self._promo_speedup_factor = 1.0  # 加速因子，每次点击减5%停留时间
             # 为每次广告创建独立定时器，避免断开连接警告
             self._promo_progress_timer = QTimer()
             self._promo_progress_timer.setInterval(100)
@@ -226,8 +225,7 @@ class PortMappingApp(QWidget):
                 color = "#1a73e8" if self.theme == "light" else "#66ccff"
                 remark_lbl.setText(f"<span style='color:{color}; font-size:14px;'>{remark}</span>")
                 # 启动新的进度条动画
-                base_dur_ms = max(1000, int(ad.get('duration', 5)) * 1000)
-                dur_ms = int(base_dur_ms * self._promo_speedup_factor)
+                dur_ms = max(1000, int(ad.get('duration', 5)) * 1000)
                 elapsed = {"v": 0}
                 def tick():
                     elapsed["v"] += 100
@@ -235,9 +233,13 @@ class PortMappingApp(QWidget):
                     progress.setValue(pct)
                 self._promo_progress_timer.timeout.connect(tick)
                 self._promo_progress_timer.start()
-                # 加速按钮：每次点击减少5%停留时间（缩短总时长）
+                # 加速按钮：每次点击让进度条直接前进5%
                 def on_speedup():
-                    self._promo_speedup_factor = max(0.2, self._promo_speedup_factor - 0.05)
+                    elapsed["v"] += dur_ms * 0.05
+                    if elapsed["v"] >= dur_ms:
+                        # 达到100%，立即切到下一张
+                        self._promo_progress_timer.stop()
+                        show_next()
                 speedup_btn.clicked.connect(on_speedup)
                 QTimer.singleShot(dur_ms, show_next)
             show_next()

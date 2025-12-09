@@ -1,11 +1,13 @@
 nuitka:
   output_dir: build
 ssh:
-  exe_path: /root/chfs/share/MinecraftFRP/lastet/MinecraftFRP.exe
   host: clash.ink
+  port: 22
   user: root
+  password: "<PUT_PASSWORD_HERE>"
+  exe_path: /root/chfs/share/MinecraftFRP/lastet/MinecraftFRP.exe
   version_json_path: /root/chfs/share/MinecraftFRP/Data/version.json
 version:
   major: 0
   minor: 5
-  patch: 21
+  patch: 23

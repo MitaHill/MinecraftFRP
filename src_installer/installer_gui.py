@@ -6,10 +6,12 @@ import os
 import sys
 import shutil
 import zipfile
+import json
 from pathlib import Path
 from PySide6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
-    QPushButton, QLineEdit, QFileDialog, QProgressBar, QMessageBox
+    QPushButton, QLineEdit, QFileDialog, QProgressBar, QMessageBox,
+    QTextBrowser, QCheckBox, QStackedWidget
 )
 from PySide6.QtCore import Qt, QThread, Signal
 from PySide6.QtGui import QFont
@@ -20,10 +22,12 @@ class InstallThread(QThread):
     progress = Signal(int, str)  # 进度, 消息
     finished = Signal(bool, str)  # 成功/失败, 消息
     
-    def __init__(self, source_dir, target_dir):
+    def __init__(self, source_dir, target_dir, version, create_shortcuts=True):
         super().__init__()
         self.source_dir = source_dir
         self.target_dir = target_dir
+        self.version = version
+        self.create_shortcuts = create_shortcuts
         
     def run(self):
         try:
@@ -38,7 +42,7 @@ class InstallThread(QThread):
                     total = len(files)
                     for i, file in enumerate(files):
                         zip_ref.extract(file, self.target_dir)
-                        progress_pct = 20 + int((i / total) * 60)
+                        progress_pct = 20 + int((i / total) * 50)
                         self.progress.emit(progress_pct, f"解压文件 {i+1}/{total}")
             else:
                 total_files = sum([len(files) for _, _, files in os.walk(self.source_dir)])
@@ -54,11 +58,15 @@ class InstallThread(QThread):
                         dst_file = os.path.join(target_path, file)
                         shutil.copy2(src_file, dst_file)
                         copied += 1
-                        progress_pct = 20 + int((copied / total_files) * 60)
+                        progress_pct = 20 + int((copied / total_files) * 50)
                         self.progress.emit(progress_pct, f"复制文件 {copied}/{total_files}")
             
-            self.progress.emit(85, "创建桌面快捷方式...")
-            self._create_shortcut()
+            self.progress.emit(75, "保存安装信息...")
+            self._save_install_info()
+            
+            if self.create_shortcuts:
+                self.progress.emit(85, "创建快捷方式...")
+                self._create_shortcuts()
             
             self.progress.emit(95, "完成安装...")
             self.finished.emit(True, "安装成功！")
@@ -66,32 +74,63 @@ class InstallThread(QThread):
         except Exception as e:
             self.finished.emit(False, f"安装失败：{str(e)}")
     
-    def _create_shortcut(self):
-        """创建桌面快捷方式"""
+    def _save_install_info(self):
+        """保存安装信息到文档目录"""
+        try:
+            doc_path = Path.home() / "Documents" / "MitaHillFRP"
+            doc_path.mkdir(parents=True, exist_ok=True)
+            
+            install_info = {
+                "version": self.version,
+                "install_path": self.target_dir,
+                "install_date": str(Path.ctime(Path(self.target_dir)))
+            }
+            
+            with open(doc_path / "install_info.json", 'w', encoding='utf-8') as f:
+                json.dump(install_info, f, indent=2, ensure_ascii=False)
+        except Exception:
+            pass
+    
+    def _create_shortcuts(self):
+        """创建桌面和开始菜单快捷方式"""
         try:
             import win32com.client
-            desktop = Path.home() / "Desktop"
-            shortcut_path = desktop / "MinecraftFRP.lnk"
-            target_exe = os.path.join(self.target_dir, "Updater.exe")
-            
             shell = win32com.client.Dispatch("WScript.Shell")
-            shortcut = shell.CreateShortcut(str(shortcut_path))
-            shortcut.TargetPath = target_exe
+            
+            launcher_exe = os.path.join(self.target_dir, "Launcher.exe")
+            
+            # 桌面快捷方式
+            desktop = Path.home() / "Desktop"
+            desktop_shortcut = desktop / "Minecraft联机工具.lnk"
+            shortcut = shell.CreateShortcut(str(desktop_shortcut))
+            shortcut.TargetPath = launcher_exe
             shortcut.WorkingDirectory = self.target_dir
-            shortcut.IconLocation = target_exe
+            shortcut.IconLocation = launcher_exe
             shortcut.Description = "MinecraftFRP 内网穿透工具"
             shortcut.save()
-        except:
+            
+            # 开始菜单快捷方式
+            start_menu = Path(os.environ.get('APPDATA')) / "Microsoft" / "Windows" / "Start Menu" / "Programs"
+            start_shortcut = start_menu / "Minecraft联机工具.lnk"
+            shortcut2 = shell.CreateShortcut(str(start_shortcut))
+            shortcut2.TargetPath = launcher_exe
+            shortcut2.WorkingDirectory = self.target_dir
+            shortcut2.IconLocation = launcher_exe
+            shortcut2.Description = "MinecraftFRP 内网穿透工具"
+            shortcut2.save()
+        except Exception:
             pass
 
 
 class InstallerWindow(QWidget):
-    """安装程序主窗口"""
+    """安装程序主窗口 - 多页面向导"""
     
-    def __init__(self, embedded_data_path=None):
+    def __init__(self, embedded_data_path=None, version="2.0.0"):
         super().__init__()
         self.embedded_data_path = embedded_data_path or self._detect_embedded_data()
+        self.version = version
         self.install_thread = None
+        self.current_page = 0
         self.init_ui()
         
     def _detect_embedded_data(self):
@@ -111,33 +150,154 @@ class InstallerWindow(QWidget):
     def init_ui(self):
         """初始化界面"""
         self.setWindowTitle("MinecraftFRP 安装向导")
-        self.setFixedSize(500, 350)
+        self.setFixedSize(600, 500)
         
+        main_layout = QVBoxLayout()
+        
+        # 页面堆叠
+        self.pages = QStackedWidget()
+        
+        # 欢迎页
+        self.pages.addWidget(self._create_welcome_page())
+        
+        # 协议页
+        self.pages.addWidget(self._create_license_page())
+        
+        # 安装配置页
+        self.pages.addWidget(self._create_config_page())
+        
+        # 安装进度页
+        self.pages.addWidget(self._create_progress_page())
+        
+        main_layout.addWidget(self.pages)
+        
+        # 底部按钮
+        btn_layout = QHBoxLayout()
+        btn_layout.addStretch()
+        
+        self.back_btn = QPushButton("上一步")
+        self.back_btn.setFixedSize(100, 35)
+        self.back_btn.clicked.connect(self.go_back)
+        self.back_btn.setEnabled(False)
+        btn_layout.addWidget(self.back_btn)
+        
+        self.next_btn = QPushButton("下一步")
+        self.next_btn.setFixedSize(100, 35)
+        self.next_btn.clicked.connect(self.go_next)
+        btn_layout.addWidget(self.next_btn)
+        
+        self.cancel_btn = QPushButton("取消")
+        self.cancel_btn.setFixedSize(100, 35)
+        self.cancel_btn.clicked.connect(self.close)
+        btn_layout.addWidget(self.cancel_btn)
+        
+        main_layout.addLayout(btn_layout)
+        self.setLayout(main_layout)
+        
+        if not self.embedded_data_path:
+            QMessageBox.critical(self, "错误", "未找到安装数据！")
+            self.next_btn.setEnabled(False)
+    
+    def _create_welcome_page(self):
+        """创建欢迎页"""
+        page = QWidget()
         layout = QVBoxLayout()
-        layout.setSpacing(15)
         
-        title = QLabel("欢迎安装 MinecraftFRP")
-        title_font = QFont()
-        title_font.setPointSize(16)
-        title_font.setBold(True)
-        title.setFont(title_font)
-        title.setAlignment(Qt.AlignCenter)
+        title = QLabel("欢迎使用 MinecraftFRP 安装向导")
+        title.setFont(QFont("Microsoft YaHei", 18, QFont.Weight.Bold))
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(title)
         
-        desc = QLabel("MinecraftFRP 是一个专为 Minecraft 玩家设计的内网穿透工具\n"
-                     "提供图形化界面，一键开启联机游戏")
-        desc.setAlignment(Qt.AlignCenter)
-        desc.setStyleSheet("color: gray;")
+        layout.addSpacing(20)
+        
+        desc = QLabel(
+            "MinecraftFRP 是一个专为 Minecraft 玩家设计的内网穿透工具。\n\n"
+            "主要功能：\n"
+            "• 快速端口映射，轻松开启联机\n"
+            "• 智能节点选择，自动测速\n"
+            "• 联机大厅系统，发现更多房间\n"
+            "• 自动更新，保持最新版本\n\n"
+            f"版本：{self.version}\n\n"
+            "点击"下一步"继续安装。"
+        )
+        desc.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        desc.setWordWrap(True)
         layout.addWidget(desc)
         
+        layout.addStretch()
+        page.setLayout(layout)
+        return page
+    
+    def _create_license_page(self):
+        """创建协议页"""
+        page = QWidget()
+        layout = QVBoxLayout()
+        
+        title = QLabel("用户许可协议")
+        title.setFont(QFont("Microsoft YaHei", 14, QFont.Weight.Bold))
+        layout.addWidget(title)
+        
+        # 加载协议内容
+        license_browser = QTextBrowser()
+        license_browser.setOpenExternalLinks(True)
+        
+        license_path = Path(__file__).parent / "LICENSE.md"
+        if license_path.exists():
+            with open(license_path, 'r', encoding='utf-8') as f:
+                license_browser.setMarkdown(f.read())
+        else:
+            license_browser.setPlainText("无法加载协议内容")
+        
+        layout.addWidget(license_browser)
+        
+        # 同意复选框
+        self.agree_checkbox = QCheckBox("我已阅读并同意上述协议，特别是关于 FRPC 可能被杀毒软件误报的说明")
+        self.agree_checkbox.stateChanged.connect(self._on_agree_changed)
+        layout.addWidget(self.agree_checkbox)
+        
+        page.setLayout(layout)
+        return page
+    
+    def _create_config_page(self):
+        """创建安装配置页"""
+        page = QWidget()
+        layout = QVBoxLayout()
+        
+        title = QLabel("选择安装位置")
+        title.setFont(QFont("Microsoft YaHei", 14, QFont.Weight.Bold))
+        layout.addWidget(title)
+        
         layout.addSpacing(20)
+        
+        # 检查是否存在旧版本
+        doc_path = Path.home() / "Documents" / "MitaHillFRP" / "install_info.json"
+        default_path = str(Path.home() / "AppData" / "Local" / "MinecraftFRP")
+        
+        if doc_path.exists():
+            try:
+                with open(doc_path, 'r', encoding='utf-8') as f:
+                    install_info = json.load(f)
+                    old_path = install_info.get("install_path", "")
+                    if old_path and os.path.exists(old_path):
+                        default_path = old_path
+                        
+                        info_label = QLabel(
+                            f"⚠️ 检测到已安装版本\n"
+                            f"当前版本：{install_info.get('version', '未知')}\n"
+                            f"安装路径：{old_path}\n\n"
+                            "将执行覆盖安装"
+                        )
+                        info_label.setStyleSheet("color: orange; padding: 10px; background: #333; border-radius: 5px;")
+                        layout.addWidget(info_label)
+                        layout.addSpacing(10)
+            except Exception:
+                pass
         
         path_label = QLabel("安装位置：")
         layout.addWidget(path_label)
         
         path_layout = QHBoxLayout()
         self.path_input = QLineEdit()
-        default_path = os.path.join(os.environ.get('ProgramFiles', 'C:\\Program Files'), 'MinecraftFRP')
         self.path_input.setText(default_path)
         path_layout.addWidget(self.path_input)
         
@@ -147,44 +307,90 @@ class InstallerWindow(QWidget):
         path_layout.addWidget(browse_btn)
         layout.addLayout(path_layout)
         
-        layout.addSpacing(10)
+        layout.addSpacing(20)
+        
+        # 快捷方式选项
+        self.desktop_checkbox = QCheckBox("创建桌面快捷方式")
+        self.desktop_checkbox.setChecked(True)
+        layout.addWidget(self.desktop_checkbox)
+        
+        layout.addStretch()
+        page.setLayout(layout)
+        return page
+    
+    def _create_progress_page(self):
+        """创建安装进度页"""
+        page = QWidget()
+        layout = QVBoxLayout()
+        
+        title = QLabel("正在安装")
+        title.setFont(QFont("Microsoft YaHei", 14, QFont.Weight.Bold))
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(title)
+        
+        layout.addSpacing(20)
         
         self.progress_bar = QProgressBar()
         self.progress_bar.setValue(0)
-        self.progress_bar.setVisible(False)
         layout.addWidget(self.progress_bar)
         
-        self.status_label = QLabel("")
-        self.status_label.setAlignment(Qt.AlignCenter)
-        self.status_label.setVisible(False)
+        self.status_label = QLabel("准备安装...")
+        self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.status_label)
         
         layout.addStretch()
+        page.setLayout(layout)
+        return page
+    
+    def _on_agree_changed(self, state):
+        """协议同意状态改变"""
+        # 在协议页时，只有同意才能下一步
+        if self.current_page == 1:
+            self.next_btn.setEnabled(state == Qt.CheckState.Checked.value)
+    
+    def go_back(self):
+        """上一步"""
+        if self.current_page > 0:
+            self.current_page -= 1
+            self.pages.setCurrentIndex(self.current_page)
+            self._update_buttons()
+    
+    def go_next(self):
+        """下一步"""
+        # 协议页检查
+        if self.current_page == 1 and not self.agree_checkbox.isChecked():
+            QMessageBox.warning(self, "警告", "请先阅读并同意用户许可协议")
+            return
         
-        btn_layout = QHBoxLayout()
-        btn_layout.addStretch()
+        # 最后一页开始安装
+        if self.current_page == 2:
+            self.start_install()
+            return
         
-        self.install_btn = QPushButton("安装")
-        self.install_btn.setFixedSize(100, 35)
-        self.install_btn.clicked.connect(self.start_install)
-        btn_layout.addWidget(self.install_btn)
+        if self.current_page < self.pages.count() - 1:
+            self.current_page += 1
+            self.pages.setCurrentIndex(self.current_page)
+            self._update_buttons()
+    
+    def _update_buttons(self):
+        """更新按钮状态"""
+        self.back_btn.setEnabled(self.current_page > 0 and self.current_page < 3)
         
-        self.cancel_btn = QPushButton("取消")
-        self.cancel_btn.setFixedSize(100, 35)
-        self.cancel_btn.clicked.connect(self.close)
-        btn_layout.addWidget(self.cancel_btn)
-        
-        layout.addLayout(btn_layout)
-        
-        self.setLayout(layout)
-        
-        if not self.embedded_data_path:
-            QMessageBox.critical(self, "错误", "未找到安装数据！")
-            self.install_btn.setEnabled(False)
+        if self.current_page == 1:
+            self.next_btn.setEnabled(self.agree_checkbox.isChecked())
+        elif self.current_page == 2:
+            self.next_btn.setText("开始安装")
+        elif self.current_page == 3:
+            self.next_btn.setVisible(False)
+            self.back_btn.setVisible(False)
+            self.cancel_btn.setVisible(False)
+        else:
+            self.next_btn.setText("下一步")
+            self.next_btn.setEnabled(True)
     
     def browse_path(self):
         """浏览安装路径"""
-        path = QFileDialog.getExistingDirectory(self, "选择安装位置", self.path_input.text())
+        path = QFileDialog.getExistingDirectory(self, "选择安装位置", str(Path(self.path_input.text()).parent))
         if path:
             full_path = os.path.join(path, "MinecraftFRP")
             self.path_input.setText(full_path)
@@ -197,22 +403,18 @@ class InstallerWindow(QWidget):
             QMessageBox.warning(self, "警告", "请选择安装位置")
             return
         
-        if os.path.exists(install_path):
-            reply = QMessageBox.question(
-                self, "确认", 
-                f"目录已存在：{install_path}\n是否覆盖安装？",
-                QMessageBox.Yes | QMessageBox.No
-            )
-            if reply != QMessageBox.Yes:
-                return
+        # 切换到安装进度页
+        self.current_page = 3
+        self.pages.setCurrentIndex(self.current_page)
+        self._update_buttons()
         
-        self.install_btn.setEnabled(False)
-        self.cancel_btn.setEnabled(False)
-        self.path_input.setEnabled(False)
-        self.progress_bar.setVisible(True)
-        self.status_label.setVisible(True)
-        
-        self.install_thread = InstallThread(self.embedded_data_path, install_path)
+        # 启动安装线程
+        self.install_thread = InstallThread(
+            self.embedded_data_path, 
+            install_path,
+            self.version,
+            self.desktop_checkbox.isChecked()
+        )
         self.install_thread.progress.connect(self.on_progress)
         self.install_thread.finished.connect(self.on_finished)
         self.install_thread.start()
@@ -227,13 +429,22 @@ class InstallerWindow(QWidget):
         self.progress_bar.setValue(100)
         
         if success:
-            QMessageBox.information(self, "成功", f"{message}\n\n程序已安装到：\n{self.path_input.text()}")
+            reply = QMessageBox.information(
+                self, "安装完成", 
+                f"{message}\n\n程序已安装到：\n{self.path_input.text()}\n\n是否立即启动？",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            )
+            
+            if reply == QMessageBox.StandardButton.Yes:
+                launcher_path = os.path.join(self.path_input.text(), "Launcher.exe")
+                if os.path.exists(launcher_path):
+                    import subprocess
+                    subprocess.Popen([launcher_path])
+            
             self.close()
         else:
-            QMessageBox.critical(self, "失败", message)
-            self.install_btn.setEnabled(True)
-            self.cancel_btn.setEnabled(True)
-            self.path_input.setEnabled(True)
+            QMessageBox.critical(self, "安装失败", message)
+            self.close()
 
 
 def main():

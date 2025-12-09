@@ -1,6 +1,6 @@
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLineEdit, QLabel
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QMenu
 from PySide6.QtGui import QDesktopServices
-from PySide6.QtCore import QUrl
+from PySide6.QtCore import QUrl, Qt
 
 class BrowserTab(QWidget):
     def __init__(self, parent_window):
@@ -15,31 +15,11 @@ class BrowserTab(QWidget):
 
     def _setup_ui(self):
         layout = QVBoxLayout(self)
-        url_bar = QHBoxLayout()
-        self.url_edit = QLineEdit(self.default_url)
-        go_btn = QPushButton("打开")
-        go_btn.clicked.connect(self.open_url)
-        url_bar.addWidget(QLabel("地址:"))
-        url_bar.addWidget(self.url_edit)
-        url_bar.addWidget(go_btn)
-        layout.addLayout(url_bar)
-
-        # 尝试使用内置浏览器（QWebEngine），失败则退回系统浏览器
+        # 无地址栏与按钮，仅右键菜单提供控制
         try:
             from PySide6.QtWebEngineWidgets import QWebEngineView
             from PySide6.QtWebEngineCore import QWebEngineSettings
             self.view = QWebEngineView()
-            # 浏览器控制栏：返回/前进/刷新
-            nav_bar = QHBoxLayout()
-            back_btn = QPushButton("← 返回")
-            fwd_btn = QPushButton("前进 →")
-            reload_btn = QPushButton("刷新")
-            back_btn.clicked.connect(self.view.back)
-            fwd_btn.clicked.connect(self.view.forward)
-            reload_btn.clicked.connect(self.view.reload)
-            nav_bar.addWidget(back_btn); nav_bar.addWidget(fwd_btn); nav_bar.addWidget(reload_btn)
-            layout.addLayout(nav_bar)
-            # 启用完整浏览器特性
             s = self.view.settings()
             for attr in [
                 QWebEngineSettings.JavascriptEnabled,
@@ -53,16 +33,20 @@ class BrowserTab(QWidget):
                 QWebEngineSettings.WebGLEnabled,
             ]:
                 s.setAttribute(attr, True)
-            # 地址栏联动
-            self.view.urlChanged.connect(lambda url: self.url_edit.setText(url.toString()))
+            # 右键菜单
+            self.view.setContextMenuPolicy(Qt.CustomContextMenu)
+            self.view.customContextMenuRequested.connect(self._show_context_menu)
             layout.addWidget(self.view)
             self.view.setUrl(QUrl(self.default_url))
         except Exception:
             layout.addWidget(QLabel("系统默认浏览器将用于打开链接。"))
 
-    def open_url(self):
-        url = self.url_edit.text().strip() or self.default_url
-        if self.view:
-            self.view.setUrl(QUrl(url))
-        else:
-            QDesktopServices.openUrl(QUrl(url))
+    def _show_context_menu(self, pos):
+        if not self.view:
+            return
+        menu = QMenu(self)
+        back_act = menu.addAction("← 返回", self.view.back)
+        fwd_act = menu.addAction("前进 →", self.view.forward)
+        reload_act = menu.addAction("刷新", self.view.reload)
+        ext_act = menu.addAction("用系统浏览器打开", lambda: QDesktopServices.openUrl(self.view.url()))
+        menu.exec(self.view.mapToGlobal(pos))

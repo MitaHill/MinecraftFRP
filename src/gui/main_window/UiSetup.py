@@ -55,4 +55,4 @@ def setup_tabs(window, servers):
     window.tab_widget.addTab(window.mapping_tab, "映射")
     window.tab_widget.addTab(window.toolbox_tab, "工具箱")
     window.tab_widget.addTab(window.settings_tab, "设置")
-    window.tab_widget.addTab(window.browser_tab, "浏览器")
+    window.tab_widget.addTab(window.browser_tab, "线上公告")

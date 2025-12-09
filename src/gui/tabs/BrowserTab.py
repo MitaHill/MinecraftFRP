@@ -24,10 +24,37 @@ class BrowserTab(QWidget):
         url_bar.addWidget(go_btn)
         layout.addLayout(url_bar)
 
-        # 尝试使用内置小型浏览器（QWebEngine），失败则退回系统浏览器
+        # 尝试使用内置浏览器（QWebEngine），失败则退回系统浏览器
         try:
             from PySide6.QtWebEngineWidgets import QWebEngineView
+            from PySide6.QtWebEngineCore import QWebEngineSettings
             self.view = QWebEngineView()
+            # 浏览器控制栏：返回/前进/刷新
+            nav_bar = QHBoxLayout()
+            back_btn = QPushButton("← 返回")
+            fwd_btn = QPushButton("前进 →")
+            reload_btn = QPushButton("刷新")
+            back_btn.clicked.connect(self.view.back)
+            fwd_btn.clicked.connect(self.view.forward)
+            reload_btn.clicked.connect(self.view.reload)
+            nav_bar.addWidget(back_btn); nav_bar.addWidget(fwd_btn); nav_bar.addWidget(reload_btn)
+            layout.addLayout(nav_bar)
+            # 启用完整浏览器特性
+            s = self.view.settings()
+            for attr in [
+                QWebEngineSettings.JavascriptEnabled,
+                QWebEngineSettings.AutoLoadImages,
+                QWebEngineSettings.PluginsEnabled,
+                QWebEngineSettings.FullScreenSupportEnabled,
+                QWebEngineSettings.HyperlinkAuditingEnabled,
+                QWebEngineSettings.ScrollAnimatorEnabled,
+                QWebEngineSettings.TouchIconsEnabled,
+                QWebEngineSettings.Accelerated2dCanvasEnabled,
+                QWebEngineSettings.WebGLEnabled,
+            ]:
+                s.setAttribute(attr, True)
+            # 地址栏联动
+            self.view.urlChanged.connect(lambda url: self.url_edit.setText(url.toString()))
             layout.addWidget(self.view)
             self.view.setUrl(QUrl(self.default_url))
         except Exception:

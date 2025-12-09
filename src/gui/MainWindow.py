@@ -63,8 +63,11 @@ class PortMappingApp(QWidget):
         self.app_config = {"settings": {}}
         
         setup_main_window_ui(self, self.SERVERS)
-        # 记录初始窗口尺寸，用于推广结束后恢复
-        self._initial_size = self.size()
+        # 延迟记录初始窗口尺寸，等待UI完全构建
+        def record_initial_size():
+            self._initial_size = self.size()
+            self._initial_geometry = self.geometry()
+        QTimer.singleShot(100, record_initial_size)
         QTimer.singleShot(50, self.deferred_initialization)
 
     def deferred_initialization(self):
@@ -111,8 +114,12 @@ class PortMappingApp(QWidget):
         popup_ads = ad_data.get('popup_ads', [])
         if not self.is_closing and popup_ads:
             from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QSizePolicy
-            from PySide6.QtCore import QUrl
+            from PySide6.QtCore import QUrl, Qt as QtCore
+            # 在显示推广前，先锁定主窗口尺寸
+            if hasattr(self, '_initial_geometry'):
+                self.setFixedSize(self._initial_geometry.size())
             promo_tab = QWidget()
+            promo_tab.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
             v = QVBoxLayout(promo_tab)
             v.setContentsMargins(8, 8, 8, 8)
             v.setSpacing(6)
@@ -174,9 +181,13 @@ class PortMappingApp(QWidget):
                     for i in range(self.tab_widget.count()):
                         self.tab_widget.setTabEnabled(i, True)
                     self.tab_widget.setCurrentWidget(self.mapping_tab)
-                    # 恢复窗口到初始尺寸
+                    # 解除窗口尺寸锁定并恢复到初始尺寸
                     try:
-                        if hasattr(self, '_initial_size'):
+                        self.setMinimumSize(0, 0)
+                        self.setMaximumSize(16777215, 16777215)
+                        if hasattr(self, '_initial_geometry'):
+                            self.setGeometry(self._initial_geometry)
+                        elif hasattr(self, '_initial_size'):
                             self.resize(self._initial_size)
                     except Exception:
                         pass

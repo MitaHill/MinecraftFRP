@@ -106,20 +106,50 @@ class PortMappingApp(QWidget):
         """
         Handles the unified ad data once it's fetched and processed by the AdThread.
         """
-        # Handle popup ads
+        # 改为在“推广”标签页推送，锁定其他标签，轮播结束后跳转到“映射”并隐藏“推广”。
         popup_ads = ad_data.get('popup_ads', [])
         if not self.is_closing and popup_ads:
-            logger.info("弹窗广告资源已就绪，显示弹窗。")
-            dialog = AdDialog(popup_ads, self)
-            dialog.exec()
-            
-        # Handle scrolling ads
+            from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel
+            promo_tab = QWidget()
+            v = QVBoxLayout(promo_tab)
+            lbl = QLabel("正在加载推广...")
+            lbl.setOpenExternalLinks(True)
+            v.addWidget(lbl)
+            # 插入“推广”标签页并切换过去
+            self.promo_tab = promo_tab
+            self.tab_widget.addTab(promo_tab, "推广")
+            self.tab_widget.setCurrentWidget(promo_tab)
+            # 锁定其他标签
+            for i in range(self.tab_widget.count()):
+                self.tab_widget.setTabEnabled(i, self.tab_widget.widget(i) is promo_tab)
+            # 轮播显示，每条广告使用其duration
+            from PySide6.QtCore import QTimer
+            self._promo_ads = popup_ads
+            self._promo_idx = 0
+            def show_next():
+                if self._promo_idx >= len(self._promo_ads):
+                    # 结束：移除推广标签，解锁并跳转到“映射”
+                    idx = self.tab_widget.indexOf(promo_tab)
+                    if idx >= 0:
+                        self.tab_widget.removeTab(idx)
+                    for i in range(self.tab_widget.count()):
+                        self.tab_widget.setTabEnabled(i, True)
+                    self.tab_widget.setCurrentWidget(self.mapping_tab)
+                    return
+                ad = self._promo_ads[self._promo_idx]
+                self._promo_idx += 1
+                text = f'<a href="{ad.get("url", "#")}">{ad.get("remark", "点击查看")}</a>'
+                lbl.setText(text)
+                dur = max(1000, int(ad.get('duration', 5)) * 1000)
+                QTimer.singleShot(dur, show_next)
+            show_next()
+        # 滚动广告仍显示在映射标签
         self.scrolling_ads = ad_data.get('scrolling_ads', [])
         if not self.is_closing and self.scrolling_ads:
             logger.info("滚动广告资源已就绪，启动定时器。")
             self.scrolling_ad_timer.timeout.connect(self._update_scrolling_ad)
-            self.scrolling_ad_timer.start(10000)  # Change ad every 10 seconds
-            self._update_scrolling_ad() # Show the first ad immediately
+            self.scrolling_ad_timer.start(10000)
+            self._update_scrolling_ad()
 
     def _update_scrolling_ad(self):
         """Cycles through the scrolling ads and updates the ad label."""

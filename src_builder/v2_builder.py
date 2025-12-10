@@ -98,8 +98,6 @@ class V2Builder:
         launcher_build_dir = self.build_dir / "temp_launcher"
         launcher_build_dir.mkdir(parents=True, exist_ok=True)
         
-        # 使用NuitkaBuilder构建launcher
-        # TODO: 需要在NuitkaBuilder中添加build_launcher方法
         launcher_script = Path("src_launcher") / "launcher.py"
         
         if not launcher_script.exists():
@@ -107,8 +105,9 @@ class V2Builder:
             return False
         
         print(f"⏳ Building launcher from {launcher_script}...")
+        print(f"📁 Build directory: {launcher_build_dir.absolute()}")
         
-        # 构建命令
+        # 构建命令 - 添加必要的插件和排除选项
         cmd = [
             sys.executable, "-m", "nuitka",
             "--standalone",
@@ -116,31 +115,46 @@ class V2Builder:
             f"--output-dir={launcher_build_dir}",
             "--output-filename=launcher.exe",
             "--enable-plugin=pyside6",
+            "--nofollow-import-to=OpenSSL",  # 不要深度跟踪 OpenSSL
+            "--nofollow-import-to=cryptography",  # 不要深度跟踪 cryptography
             "--windows-console-mode=disable",
             "--company-name=MitaHill",
             "--product-name=MinecraftFRP Launcher",
             "--file-version=" + self.config.get_version_string(),
             "--product-version=" + self.config.get_version_string(),
             "--copyright=Copyright (c) 2025 MitaHill",
+            "--assume-yes-for-downloads",  # 自动确认下载
             str(launcher_script)
         ]
         
         if not self.args.fast:
             cmd.append("--lto=yes")
         
+        print("📝 Nuitka command:")
+        print("   " + " ".join(cmd))
+        
         # 执行构建
         import subprocess
+        print("\n▶️  Starting Nuitka compilation...")
         result = subprocess.run(cmd, capture_output=False)
         
         if result.returncode != 0:
-            print(f"❌ ERROR: Launcher build failed")
+            print(f"❌ ERROR: Launcher build failed with exit code {result.returncode}")
             return False
         
         # 查找生成的exe
         launcher_exe = launcher_build_dir / "launcher.exe"
+        print(f"\n🔍 Looking for launcher.exe at: {launcher_exe.absolute()}")
+        
         if not launcher_exe.exists():
-            print(f"❌ ERROR: launcher.exe not found at {launcher_exe}")
+            print(f"❌ ERROR: launcher.exe not found!")
+            print(f"📁 Contents of {launcher_build_dir}:")
+            for item in launcher_build_dir.iterdir():
+                print(f"   - {item.name}")
             return False
+        
+        exe_size_mb = launcher_exe.stat().st_size / (1024 * 1024)
+        print(f"✅ Found launcher.exe ({exe_size_mb:.2f} MB)")
         
         self.launcher_exe_path = launcher_exe
         self.launcher_build_time = time.time() - start_time
@@ -162,6 +176,7 @@ class V2Builder:
         main_build_dir.mkdir(parents=True, exist_ok=True)
         
         print(f"⏳ Building main application...")
+        print(f"📁 Build directory: {main_build_dir.absolute()}")
         
         # 构建命令（目录模式，不是onefile）
         cmd = [
@@ -178,25 +193,48 @@ class V2Builder:
             "--file-version=" + current_version,
             "--product-version=" + current_version,
             "--copyright=Copyright (c) 2025 MitaHill",
+            "--assume-yes-for-downloads",
             "app.py"
         ]
         
         if not self.args.fast:
             cmd.append("--lto=yes")
         
+        print("📝 Nuitka command:")
+        print("   " + " ".join(cmd))
+        
         # 执行构建
         import subprocess
+        print("\n▶️  Starting Nuitka compilation...")
         result = subprocess.run(cmd, capture_output=False)
         
         if result.returncode != 0:
-            print(f"❌ ERROR: Main app build failed")
+            print(f"❌ ERROR: Main app build failed with exit code {result.returncode}")
             return False
         
         # 查找生成的目录
         app_dist = main_build_dir / "app.dist"
+        print(f"\n🔍 Looking for app.dist at: {app_dist.absolute()}")
+        
         if not app_dist.exists() or not app_dist.is_dir():
-            print(f"❌ ERROR: app.dist directory not found at {app_dist}")
+            print(f"❌ ERROR: app.dist directory not found!")
+            print(f"📁 Contents of {main_build_dir}:")
+            for item in main_build_dir.iterdir():
+                print(f"   - {item.name}")
             return False
+        
+        # 检查主程序exe
+        main_exe = app_dist / "MinecraftFRP.exe"
+        if not main_exe.exists():
+            print(f"❌ ERROR: MinecraftFRP.exe not found in app.dist!")
+            return False
+        
+        exe_size_mb = main_exe.stat().st_size / (1024 * 1024)
+        print(f"✅ Found MinecraftFRP.exe ({exe_size_mb:.2f} MB)")
+        
+        # 统计文件数量
+        file_count = sum(1 for _ in app_dist.rglob('*') if _.is_file())
+        print(f"✅ app.dist contains {file_count} files")
         
         self.main_app_dir = app_dist
         self.main_build_time = time.time() - start_time
@@ -258,6 +296,16 @@ class V2Builder:
             return False
         
         print(f"⏳ Building installer...")
+        print(f"📁 Build directory: {installer_build_dir.absolute()}")
+        print(f"📦 App package: {self.app_package_zip.absolute()}")
+        
+        # 验证app包存在
+        if not self.app_package_zip.exists():
+            print(f"❌ ERROR: App package not found: {self.app_package_zip}")
+            return False
+        
+        pkg_size_mb = self.app_package_zip.stat().st_size / (1024 * 1024)
+        print(f"📦 App package size: {pkg_size_mb:.2f} MB")
         
         # 构建命令
         cmd = [
@@ -274,25 +322,38 @@ class V2Builder:
             "--file-version=" + self.config.get_version_string(),
             "--product-version=" + self.config.get_version_string(),
             "--copyright=Copyright (c) 2025 MitaHill",
+            "--assume-yes-for-downloads",
             str(installer_script)
         ]
         
         if not self.args.fast:
             cmd.append("--lto=yes")
         
+        print("📝 Nuitka command:")
+        print("   " + " ".join(cmd))
+        
         # 执行构建
         import subprocess
+        print("\n▶️  Starting Nuitka compilation...")
         result = subprocess.run(cmd, capture_output=False)
         
         if result.returncode != 0:
-            print(f"❌ ERROR: Installer build failed")
+            print(f"❌ ERROR: Installer build failed with exit code {result.returncode}")
             return False
         
         # 查找生成的exe
         installer_exe = installer_build_dir / "Minecraft_FRP_Installer.exe"
+        print(f"\n🔍 Looking for installer at: {installer_exe.absolute()}")
+        
         if not installer_exe.exists():
-            print(f"❌ ERROR: Installer exe not found at {installer_exe}")
+            print(f"❌ ERROR: Installer exe not found!")
+            print(f"📁 Contents of {installer_build_dir}:")
+            for item in installer_build_dir.iterdir():
+                print(f"   - {item.name}")
             return False
+        
+        exe_size_mb = installer_exe.stat().st_size / (1024 * 1024)
+        print(f"✅ Found Minecraft_FRP_Installer.exe ({exe_size_mb:.2f} MB)")
         
         self.installer_exe_path = installer_exe
         self.installer_build_time = time.time() - start_time
@@ -311,26 +372,63 @@ class V2Builder:
         current_version = self.config.get_version_string()
         final_dist_dir = self.dist_dir / f"MinecraftFRP_{current_version}_installer"
         
+        print(f"📁 Target directory: {final_dist_dir.absolute()}")
+        print(f"📄 Source installer: {self.installer_exe_path.absolute()}")
+        
+        # 验证源文件存在
+        if not self.installer_exe_path.exists():
+            print(f"❌ ERROR: Source installer not found at {self.installer_exe_path}")
+            return False
+        
+        source_size_mb = self.installer_exe_path.stat().st_size / (1024 * 1024)
+        print(f"📊 Source file size: {source_size_mb:.2f} MB")
+        
         # 清理旧dist
         if final_dist_dir.exists():
+            print(f"🗑️  Removing old dist directory...")
             try:
                 shutil.rmtree(final_dist_dir)
+                print(f"✅ Old dist removed")
             except Exception as e:
                 print(f"⚠️  Warning: Could not remove old dist: {e}")
         
+        print(f"📁 Creating dist directory...")
         final_dist_dir.mkdir(parents=True, exist_ok=True)
+        print(f"✅ Dist directory created")
         
         # 复制installer
         try:
             final_installer = final_dist_dir / "Minecraft_FRP_Installer.exe"
+            print(f"📋 Copying installer...")
+            print(f"   From: {self.installer_exe_path}")
+            print(f"   To:   {final_installer}")
+            
             shutil.copy2(self.installer_exe_path, final_installer)
+            
+            # 验证复制结果
+            if not final_installer.exists():
+                print(f"❌ ERROR: Installer not found after copy!")
+                return False
+            
+            copied_size_mb = final_installer.stat().st_size / (1024 * 1024)
+            print(f"✅ Copied successfully ({copied_size_mb:.2f} MB)")
+            
+            # 更新引用（重要！）
+            print(f"🔄 Updating installer path reference...")
             self.installer_exe_path = final_installer
-            print(f"✅ Installer: {final_installer}")
+            print(f"✅ New path: {self.installer_exe_path}")
+            
+            # 再次验证文件存在
+            print(f"🔍 Final verification: {self.installer_exe_path.exists()}")
+            
         except Exception as e:
             print(f"❌ ERROR: Failed to copy installer: {e}")
+            import traceback
+            traceback.print_exc()
             return False
         
         self.final_dist_dir = final_dist_dir
+        print(f"✅ Artifacts moved successfully")
         return True
     
     def generate_version_json(self) -> bool:
@@ -388,12 +486,26 @@ class V2Builder:
     def cleanup(self):
         """清理build目录"""
         print(f"\n🧹 Cleaning build directory...")
+        print(f"📁 Build directory: {self.build_dir.absolute()}")
+        
+        # 再次确认installer已经移动到dist
+        if hasattr(self, 'installer_exe_path'):
+            print(f"🔍 Verifying installer location before cleanup...")
+            print(f"   Installer path: {self.installer_exe_path}")
+            print(f"   Exists: {self.installer_exe_path.exists()}")
+            if not self.installer_exe_path.exists():
+                print(f"⚠️  WARNING: Installer not found! Aborting cleanup to preserve files.")
+                return
+        
         if self.build_dir.exists():
             try:
+                print(f"🗑️  Removing build directory...")
                 shutil.rmtree(self.build_dir)
-                print(f"✅ Build directory cleaned")
+                print(f"✅ Build directory cleaned: {self.build_dir}")
             except Exception as e:
                 print(f"⚠️  Warning: Could not fully clean: {e}")
+                import traceback
+                traceback.print_exc()
     
     def print_summary(self, deployment_successful: bool):
         """打印总结"""

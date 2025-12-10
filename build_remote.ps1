@@ -46,19 +46,32 @@ if ($Remote) {
     Write-Host "2️⃣ 检查远程依赖..." -ForegroundColor Cyan
     $checkCmd = @"
 cd $RemoteWorkDir
-python --version
-python -c 'import nuitka; print(\"Nuitka OK\")'
-python -c 'import PySide6; print(\"PySide6 OK\")'
-if (Test-Path 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe') { echo 'Inno Setup OK' } else { echo 'Inno Setup MISSING' }
+if (Test-Path '.venv\Scripts\python.exe') {
+    Write-Host 'Python (venv): OK'
+    & .\.venv\Scripts\python.exe --version
+    & .\.venv\Scripts\python.exe -c 'import nuitka; print(\"Nuitka: OK\")'
+    & .\.venv\Scripts\python.exe -c 'import PySide6; print(\"PySide6: OK\")'
+} else {
+    Write-Host 'ERROR: Virtual environment not found'
+    exit 1
+}
+if (Test-Path 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe') { 
+    Write-Host 'Inno Setup: OK' 
+} else { 
+    Write-Host 'ERROR: Inno Setup not installed' 
+    exit 1
+}
 "@
     
     $depCheck = ssh "$RemoteUser@$RemoteHost" "powershell -Command `"$checkCmd`"" 2>&1
     Write-Host $depCheck
     
-    if ($depCheck -match "MISSING") {
+    if ($depCheck -match "ERROR") {
         Write-Host ""
         Write-Host "❌ 远程服务器依赖不完整！" -ForegroundColor Red
-        Write-Host "   请先在远程服务器安装缺失的依赖" -ForegroundColor Yellow
+        Write-Host "   问题可能是:" -ForegroundColor Yellow
+        Write-Host "   - 虚拟环境(.venv)未同步到远程" -ForegroundColor Yellow
+        Write-Host "   - Inno Setup未安装" -ForegroundColor Yellow
         exit 1
     }
     Write-Host "   ✅ 远程依赖完整" -ForegroundColor Green
@@ -71,12 +84,12 @@ if (Test-Path 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe') { echo 'Inno Setup
     
     # 4. 触发远程构建
     Write-Host "4️⃣ 触发远程构建..." -ForegroundColor Cyan
-    Write-Host "   命令: python build.py $buildArgs" -ForegroundColor Gray
+    Write-Host "   命令: .\.venv\Scripts\python.exe build.py $buildArgs" -ForegroundColor Gray
     Write-Host ""
     
     $buildCmd = @"
 cd $RemoteWorkDir
-python build.py $buildArgs 2>&1
+.\.venv\Scripts\python.exe build.py $buildArgs 2>&1
 "@
     
     ssh "$RemoteUser@$RemoteHost" "powershell -Command `"$buildCmd`""

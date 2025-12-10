@@ -24,47 +24,67 @@
 
 ## 2.5 架构版本说明
 
-### v2.0 架构 (当前) - 全新安装器模式
+### v2.0 架构 (当前) - Inno Setup 专业安装器
 
-从 v2.0 开始，项目进行了**彻底重构**，从单文件模式转向**安装器 + 目录部署**的全新架构，彻底解决了v1.x的文件锁、更新复杂等问题。
+从 v2.0 开始，项目进行了**彻底重构**，采用 **Inno Setup** 专业安装程序，提供标准Windows软件安装体验。
 
 ---
 
 #### 核心改进：
-1. **专业安装程序**：使用 PySide6 手工编写的图形化安装器，提供完整的安装向导体验
-2. **目录化部署**：放弃单文件打包，采用标准软件目录结构
+1. **Inno Setup 安装器**：使用业界标准的 Inno Setup 6，提供完整的 Windows 安装向导
+2. **目录化部署**：采用标准软件目录结构（Program Files）
 3. **启动器 (Launcher)**：用户入口改为 `launcher.exe`，负责更新检测和启动主程序
 4. **配置文件分离**：用户数据存储在 `文档/MitaHillFRP/` 目录，支持跨版本保留配置
-5. **更新机制重设计**：下载完整安装包 → 自动覆盖安装 → 保留用户配置
+5. **覆盖更新机制**：类似微信/Chrome的升级体验，直接覆盖安装，无需卸载
+6. **自动卸载程序**：完整的卸载功能，可选保留配置文件
+
+---
+
+#### 重要：AppId 锁定
+
+**永远不要修改这个 GUID！**
+
+```
+AppId: {8B5F6C3D-9E4A-4F2B-A1D3-7C8E9F0B1A2C}
+```
+
+**为什么重要？**
+- Inno Setup 通过 AppId 识别是否为同一个软件
+- 如果修改了 AppId，新版本会被识别为不同的软件
+- 用户会同时看到两个"MinecraftFRP"程序
+- 会导致注册表混乱和卸载问题
+
+**正确做法**：无论版本如何变化（0.5.32 → 0.6.0 → 1.0.0），**AppId 始终保持不变**。
 
 ---
 
 #### v2.0 目录结构：
 
-**安装目录** (默认: `C:\Users\<用户名>\AppData\Local\MinecraftFRP\`)
+**安装目录** (默认: `C:\Program Files\MinecraftFRP\`)
 ```
 MinecraftFRP/
 ├── launcher.exe               # 【用户入口】启动器（检查更新 + 启动主程序）
-├── app.exe                    # 主程序（由 launcher 调用）
-├── uninstall.exe              # 卸载程序
+├── app.dist/                  # 主程序目录
+│   ├── MinecraftFRP.exe       # 主程序
+│   └── ... (478个依赖文件)
 ├── base/                      # 依赖资源目录
 │   ├── frpc.exe               # FRP 客户端 (旧版)
 │   ├── new-frpc.exe           # FRP 客户端 (新版 TOML)
-│   └── tracert.exe            # 网络诊断工具
+│   ├── tracert.exe            # 网络诊断工具
+│   └── logo.ico               # 程序图标
 ├── config/                    # 本地配置缓存 (非用户数据)
 │   ├── frp-server-list.json   # 服务器列表缓存
 │   └── ads/                   # 广告图片缓存
 ├── logs/                      # 运行日志
 │   ├── app.log
 │   └── launcher.log
-└── downloads/                 # 更新包下载缓存
+└── unins000.exe              # Inno Setup 自动生成的卸载程序
 ```
 
 **用户配置目录** (`C:\Users\<用户名>\Documents\MitaHillFRP\`)
 ```
 MitaHillFRP/
-├── app_config.yaml            # 用户个人配置（端口、主题等）
-└── install_record.dat         # 安装记录文件（记录安装路径和版本）
+└── app_config.yaml            # 用户个人配置（端口、主题等）
 ```
 
 ---
@@ -72,28 +92,33 @@ MitaHillFRP/
 #### v2.0 安装流程：
 
 **首次安装：**
-1. 用户运行 `Minecraft_FRP_Installer.exe`
-2. 安装器显示欢迎页 → 用户协议（MarkDown格式，强调杀软误报提示）
-3. 用户选择安装路径（默认 `C:\Users\<用户名>\AppData\Local\MinecraftFRP\`）
-4. 安装器解压所有文件 → 创建桌面/开始菜单快捷方式（指向 `launcher.exe`）
-5. 在 `文档/MitaHillFRP/` 创建 `install_record.dat`，记录安装路径和版本
-6. 安装完成，提示用户启动程序
+1. 用户运行 `MinecraftFRP_Setup_0.5.32.exe`
+2. 安装器显示欢迎页 → 许可协议 → 选择安装路径
+3. 选择创建快捷方式（桌面/开始菜单）
+4. 安装器解压所有文件到目标目录
+5. 在注册表中注册应用程序信息（控制面板可见）
+6. 安装完成，可选立即启动程序
 
 **升级安装（覆盖安装）：**
-1. Launcher 检测到新版本 → 下载 `Minecraft_FRP_Installer.exe` 到 `downloads/` 目录
-2. Launcher 自动启动安装器，并传递参数 `--silent-upgrade`
-3. 安装器读取 `文档/MitaHillFRP/install_record.dat`，获取上次安装路径
-4. 弹出对话框："检测到新版本 vX.Y.Z，是否立即安装？（10秒后自动开始）"
-5. 用户确认或超时 → 安装器覆盖安装目录中的所有文件（保留 `config/` 和 `logs/`）
-6. 安装器更新 `install_record.dat` 中的版本号
-7. 安装完成，自动启动新版本的 `launcher.exe`
+1. 用户下载新版安装包 `MinecraftFRP_Setup_0.5.33.exe`
+2. 双击运行安装包
+3. Inno Setup 自动检测：
+   - 通过 AppId 发现旧版本已安装
+   - 自动切换为"升级模式"
+   - 如程序正在运行，提示用户关闭（自动检测）
+4. 覆盖安装：
+   - 替换所有程序文件
+   - 保留用户配置（`文档/MitaHillFRP/`）
+   - 更新注册表版本号
+5. 如程序之前在运行，安装完成后自动重启
 
 **卸载流程：**
-1. 用户运行 `uninstall.exe` 或通过系统控制面板卸载
-2. 卸载程序删除整个安装目录
-3. 询问用户是否保留配置文件（`文档/MitaHillFRP/`）
-4. 删除桌面和开始菜单快捷方式
-5. （可选）删除 `文档/MitaHillFRP/` 目录
+1. 方式1：设置 → 应用 → MinecraftFRP → 卸载
+2. 方式2：开始菜单 → MinecraftFRP → 卸载 MinecraftFRP
+3. 卸载程序删除整个安装目录
+4. 询问用户是否保留配置文件（`文档/MitaHillFRP/`）
+5. 删除桌面和开始菜单快捷方式
+6. 清理注册表
 
 ---
 
@@ -113,23 +138,29 @@ launcher.exe 启动
 │ 版本对比                            │
 ├─────────────────────────────────────┤
 │ 【最新】→ 直接启动 app.exe          │
-│ 【过旧】→ 下载安装包 + 覆盖安装     │
+│ 【过旧】→ 提示用户下载新版安装包     │
 └─────────────────────────────────────┘
-    ↓ (版本过旧)
-下载: https://z.clash.ink/chfs/shared/MinecraftFRP/lastet/Minecraft_FRP_Installer.exe
-    ↓ (保存到 downloads/ 目录)
-启动安装器: installer.exe --silent-upgrade
-    ↓
-安装器读取 install_record.dat → 覆盖安装
-    ↓
-安装完成 → launcher 自动启动新版 app.exe
 ```
 
+**两种更新方式：**
+
+**方案一：覆盖更新（已实现）**
+- 用户手动下载新版安装包
+- 双击运行，Inno Setup 自动检测旧版本
+- 自动提示关闭程序、覆盖安装、保留配置
+- 类似微信/Chrome的升级体验
+
+**方案二：自动在线更新（未来增强，架构已设计）**
+- Launcher 检测到新版本
+- 后台下载安装包并校验 SHA256
+- 唤起安装包进行静默安装
+- 详细实现见 `docs/UPDATE_STRATEGY.md`
+
 **关键特性：**
-- **无需关闭主程序**：更新流程在 launcher 层完成，app.exe 未运行时才开始安装
-- **配置保留**：用户配置存储在独立的 `文档/MitaHillFRP/` 目录，不会被覆盖
-- **降级保护**：不支持降级安装，确保版本单向升级
-- **静默更新选项**：launcher 可配置自动静默更新（无需用户确认）
+- **配置保留**：用户配置存储在独立的 `文档/MitaHillFRP/` 目录，永不被覆盖
+- **自动卸载程序**：Inno Setup 自动生成，注册到控制面板
+- **注册表集成**：应用信息、版本号、卸载路径自动写入注册表
+- **静默更新选项**：未来可支持 `/VERYSILENT` 参数实现静默升级
 
 ---
 
@@ -138,19 +169,32 @@ launcher.exe 启动
 **最终产物：**
 ```
 dist/
-├── MinecraftFRP_版本号_install/
-│   └── Minecraft_FRP_Installer.exe   # 【唯一分发文件】
-└── version_index/
-    └── version.json                  # 版本清单文件
+├── MinecraftFRP_0.5.32_installer/
+│   └── MinecraftFRP_Setup_0.5.32.exe   # 【唯一分发文件】
+├── MinecraftFRP_build/                 # 构建中间产物
+│   ├── launcher.exe
+│   └── app.dist/
+└── minecraft_version_index/
+    └── version.json                    # 版本清单文件
 ```
 
 **服务器部署：**
-- `Minecraft_FRP_Installer.exe` → 上传到 `/root/chfs/share/MinecraftFRP/lastet/Minecraft_FRP_Installer.exe`
+- `MinecraftFRP_Setup_0.5.32.exe` → 上传到 `/root/chfs/share/MinecraftFRP/downloads/`
 - `version.json` → 上传到 `/root/chfs/share/MinecraftFRP/Data/version.json`
 
 **用户获取方式：**
-- **首次安装**：从官网/分发渠道下载 `Minecraft_FRP_Installer.exe`
-- **后续更新**：launcher 自动下载最新安装器并覆盖安装
+- **首次安装**：从官网/分发渠道下载 `MinecraftFRP_Setup_x.x.x.exe`
+- **后续更新**：手动下载新版安装包并运行（或等待方案二实现后自动更新）
+
+---
+
+#### v2.0 技术栈：
+
+- **安装器**: Inno Setup 6.6.1
+- **编译器**: Nuitka 2.8.9
+- **GUI框架**: PySide6
+- **构建脚本**: Python (src_builder/)
+- **部署**: SSH/SFTP (paramiko)
 
 ## 3. Git 工作流与规范 (严格执行)
 
@@ -362,6 +406,10 @@ MinecraftFRP/
 
 | 日期 (Date) | 类型 (Type) | 描述 (Description) | Git Hash (Short) / Branch |
 | :--- | :--- | :--- | :--- |
+| 2025-12-10 | `feat` | 迁移到 Inno Setup 专业安装器，彻底重构 v2 架构 | `v2-installer-architecture` |
+| 2025-12-10 | `feat` | 添加覆盖更新支持（类似微信/Chrome升级体验） | `a02b905` |
+| 2025-12-10 | `feat` | 简化构建命令，--v2 默认启用 fast 模式 | `e1bc046` |
+| 2025-12-10 | `fix` | 修复 Inno Setup 的 DirExistsWarning 参数错误 | 进行中 |
 | 2025-12-08 | `fix` | 修复 `Styles` 模块的 `ModuleNotFoundError` | `09174aa` |
 | 2025-12-08 | `fix` | 修复服务器管理窗口和文件下载功能 | `ed245b2` |
 | 2025-12-07 | `feat` | 实现启动广告弹窗，并重构统一广告系统 | `feat/startup-ad-dialog` |
@@ -411,11 +459,52 @@ python build.py
 ```
 
 #### v2.0 架构构建说明
-从 v2.0 开始，构建流程支持新的安装器模式：
+从 v2.0 开始，构建流程支持新的 Inno Setup 安装器模式：
+
 ```shell
+# 基本构建（自动启用 --fast）
 python build.py --v2
+
+# 构建并上传
+python build.py --v2 --upload
+
+# 清理后构建
+python build.py --v2 --clean
 ```
-此命令将编译主程序、launcher 和 installer，并生成完整的安装包。
+
+**构建阶段：**
+1. **Launcher 编译** (4-5分钟) - 使用 Nuitka onefile 模式
+2. **主应用编译** (4-5分钟) - 使用 Nuitka standalone 模式，生成 app.dist/
+3. **文件组织** (几秒) - 复制到 dist/MinecraftFRP_build/
+4. **Inno Setup 打包** (30秒) - 生成最终的 Setup.exe
+
+**总耗时**: 约 10-12 分钟
+
+**构建产物**:
+```
+dist/
+├── MinecraftFRP_0.5.32_installer/
+│   └── MinecraftFRP_Setup_0.5.32.exe    # 最终安装器（~180-200MB）
+├── MinecraftFRP_build/                  # 中间产物（Inno Setup 源）
+│   ├── launcher.exe
+│   └── app.dist/ (478个文件)
+└── minecraft_version_index/
+    └── version.json
+```
+
+**远程构建**:
+```shell
+# 在远程服务器构建
+.\build_remote.ps1 -Remote -Fast
+
+# SSH 直接构建
+ssh vgpu-server-user@192.168.9.158 "cd /d D:\MinecraftFRP && .venv\Scripts\python.exe build.py --v2"
+```
+
+**参考文档**:
+- `docs/v2_build_guide.md` - 完整构建指南
+- `docs/UPDATE_STRATEGY.md` - 更新策略详解
+- `docs/INNO_SETUP_DEPENDENCIES.md` - Inno Setup 依赖安装
 
 ### 12.4 远程构建指令
 如需在远程服务器上执行构建，可使用以下 SSH 命令：

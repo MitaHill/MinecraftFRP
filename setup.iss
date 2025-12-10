@@ -55,7 +55,6 @@ AllowNoIcons=yes
 ChangesEnvironment=no
 
 ; 覆盖更新配置（方案一：支持像微信/Chrome那样的覆盖安装）
-DirExistsWarning=no              ; 检测到同名目录时不弹窗询问，直接覆盖
 CloseApplications=yes            ; 自动检测并提示用户关闭正在运行的程序
 RestartApplications=yes          ; 安装完成后自动重启程序（如果之前在运行）
 CloseApplicationsFilter=*.exe    ; 需要关闭的程序类型

@@ -7,7 +7,14 @@ import shutil
 import logging
 from pathlib import Path
 from typing import List
-import win32com.client
+
+# win32com是可选的，用于创建快捷方式
+try:
+    import win32com.client
+    HAS_WIN32COM = True
+except ImportError:
+    HAS_WIN32COM = False
+    logging.warning("win32com not available, shortcuts will not be created")
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +59,10 @@ class FileOperations:
     
     def create_shortcuts(self, install_dir: str):
         """创建快捷方式"""
+        if not HAS_WIN32COM:
+            logger.warning("win32com not available, skipping shortcut creation")
+            return
+        
         install_path = Path(install_dir)
         launcher_path = install_path / "launcher.exe"
         
@@ -91,6 +102,10 @@ class FileOperations:
     
     def remove_shortcuts(self):
         """删除快捷方式"""
+        if not HAS_WIN32COM:
+            logger.warning("win32com not available, skipping shortcut removal")
+            return
+        
         try:
             shell = win32com.client.Dispatch("WScript.Shell")
             

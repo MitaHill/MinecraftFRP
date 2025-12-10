@@ -410,6 +410,20 @@ MinecraftFRP/
 python build.py
 ```
 
+#### v2.0 架构构建说明
+从 v2.0 开始，构建流程支持新的安装器模式：
+```shell
+python build.py --v2
+```
+此命令将编译主程序、launcher 和 installer，并生成完整的安装包。
+
+### 12.4 远程构建指令
+如需在远程服务器上执行构建，可使用以下 SSH 命令：
+```shell
+ssh vgpu-server-user@192.168.9.158 "cd /d D:\MinecraftFRP && venv\Scripts\python.exe build.py --v2"
+```
+此命令将在远程 Windows 服务器上执行 v2.0 架构的完整构建流程。
+
 ## 13. 附录：技术细节与修复记录
 
 ### 统一HTTP请求实现

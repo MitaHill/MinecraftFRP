@@ -4,9 +4,9 @@ This file is auto-generated during build process.
 """
 
 VERSION = "0.5.32"
-GIT_HASH = "4e19b5a"
-GIT_BRANCH = "refactor-build-modularization"
-BUILD_DATE = "2025-12-09T18:56:08.247419Z"
+GIT_HASH = "35e3160"
+GIT_BRANCH = "v2-installer-architecture"
+BUILD_DATE = "2025-12-10T05:47:57.515858Z"
 
 def get_version_info():
     """Get formatted version information."""

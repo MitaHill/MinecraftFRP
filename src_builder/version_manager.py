@@ -52,11 +52,19 @@ class VersionManager:
             live_version_data = json.loads(content)
             server_git_hash = live_version_data.get("git_hash")
             
-            if server_git_hash:
-                print(f"OK: Found server git_hash: {server_git_hash}")
-                log_range = f"{server_git_hash}..HEAD"
+            if server_git_hash and server_git_hash != "unknown":
+                # 验证git_hash是否有效
+                try:
+                    subprocess.check_output(
+                        ['git', 'rev-parse', '--verify', server_git_hash],
+                        stderr=subprocess.DEVNULL
+                    )
+                    print(f"OK: Found valid server git_hash: {server_git_hash}")
+                    log_range = f"{server_git_hash}..HEAD"
+                except subprocess.CalledProcessError:
+                    print(f"WARNING: Server git_hash '{server_git_hash}' is invalid. Proceeding to fallback.")
             else:
-                print("WARNING: 'git_hash' not found in live version.json. Proceeding to fallback.")
+                print("WARNING: 'git_hash' not found or is 'unknown' in live version.json. Proceeding to fallback.")
                 
         except Exception as e:
             print(f"WARNING: Could not fetch live version.json: {e}. Proceeding to fallback.")
@@ -118,6 +126,12 @@ class VersionManager:
                 "size_bytes": exe_size
             }
             
+            # 确保输出目录存在
+            output_dir = os.path.dirname(output_path)
+            if output_dir and not os.path.exists(output_dir):
+                os.makedirs(output_dir, exist_ok=True)
+                print(f"✅ Created directory: {output_dir}")
+            
             with open(output_path, 'w', encoding='utf-8') as f:
                 json.dump(version_data, f, indent=4, ensure_ascii=False)
             
@@ -126,6 +140,8 @@ class VersionManager:
             
         except Exception as e:
             print(f"❌ ERROR: Failed to create version.json: {e}")
+            import traceback
+            traceback.print_exc()
             return False
     
     def update_version_file(self, version_string):

@@ -13,6 +13,16 @@ MinecraftFRP Build & Deploy Script (Modular Version)
 """
 
 import sys
+import os
+
+# 设置环境变量以支持UTF-8输出（Windows）
+if sys.platform == 'win32':
+    os.system('chcp 65001 >nul 2>&1')  # 切换到UTF-8代码页
+    # 重新配置stdout/stderr为UTF-8
+    if hasattr(sys.stdout, 'reconfigure'):
+        sys.stdout.reconfigure(encoding='utf-8')
+        sys.stderr.reconfigure(encoding='utf-8')
+
 from src_builder.arg_parser import parse_arguments
 from src_builder.build_orchestrator import BuildOrchestrator
 from src_builder.v2_builder import V2Builder

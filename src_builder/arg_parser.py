@@ -17,12 +17,12 @@ def parse_arguments():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python build.py --fast                    # Fast build without LTO
-  python build.py --upload                  # Build and upload to server
-  python build.py --fast --upload           # Fast build + upload
+  python build.py --v2                      # V2 build with Inno Setup (fast by default)
+  python build.py --v2 --upload             # V2 build and upload to server
+  python build.py --fast                    # V1 fast build without LTO
+  python build.py --upload                  # V1 build and upload to server
   python build.py --clean                   # Clean build cache before building
   python build.py --verify-only             # Only verify dependencies
-  python build.py --skip-updater            # Skip updater rebuild
         """
     )
     
@@ -77,4 +77,10 @@ Examples:
         help="Only verify dependencies and exit"
     )
     
-    return parser.parse_args()
+    args = parser.parse_args()
+    
+    # 如果使用v2架构，默认启用fast模式（Inno Setup不需要LTO）
+    if args.v2 and not args.fast:
+        args.fast = True
+    
+    return args

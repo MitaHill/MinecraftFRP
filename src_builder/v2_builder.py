@@ -245,105 +245,136 @@ class V2Builder:
         return True
     
     def create_app_package(self) -> bool:
-        """打包主应用和启动器到zip"""
+        """组织构建产物到 Inno Setup 期望的目录结构"""
         print("\n" + "="*80)
-        print("📦 Creating Application Package")
+        print("📦 Organizing Build Output for Inno Setup")
         print("="*80)
         
         current_version = self.config.get_version_string()
-        package_dir = self.build_dir / "temp_package"
-        package_dir.mkdir(parents=True, exist_ok=True)
+        output_dir = self.dist_dir / "MinecraftFRP_build"
         
-        zip_path = package_dir / f"MinecraftFRP_{current_version}.zip"
+        # 清理旧的输出目录
+        if output_dir.exists():
+            print(f"🧹 Cleaning old output directory...")
+            shutil.rmtree(output_dir)
         
-        print(f"⏳ Packaging files to {zip_path}...")
+        output_dir.mkdir(parents=True, exist_ok=True)
+        
+        print(f"⏳ Organizing files to {output_dir}...")
         
         try:
-            with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-                # 打包主应用目录
-                for file in self.main_app_dir.rglob('*'):
-                    if file.is_file():
-                        arcname = file.relative_to(self.main_app_dir)
-                        zipf.write(file, arcname)
-                        print(f"   Added: {arcname}")
-                
-                # 打包启动器
-                zipf.write(self.launcher_exe_path, "launcher.exe")
-                print(f"   Added: launcher.exe")
+            # 1. 复制 launcher.exe
+            launcher_dest = output_dir / "launcher.exe"
+            shutil.copy2(self.launcher_exe_path, launcher_dest)
+            print(f"✅ Copied launcher.exe")
             
-            print(f"✅ Package created: {zip_path}")
-            self.app_package_zip = zip_path
+            # 2. 复制主应用目录
+            app_dest = output_dir / "app.dist"
+            shutil.copytree(self.main_app_dir, app_dest, dirs_exist_ok=True)
+            
+            # 统计文件
+            file_count = sum(1 for _ in app_dest.rglob('*') if _.is_file())
+            print(f"✅ Copied app.dist ({file_count} files)")
+            
+            # 3. 验证关键文件
+            main_exe = app_dest / "MinecraftFRP.exe"
+            if not main_exe.exists():
+                print(f"❌ ERROR: MinecraftFRP.exe not found!")
+                return False
+            
+            print(f"✅ Verified MinecraftFRP.exe")
+            
+            # 保存路径供后续使用
+            self.build_output_dir = output_dir
+            
+            print(f"\n✅ Build output organized:")
+            print(f"   Location: {output_dir}")
+            print(f"   - launcher.exe")
+            print(f"   - app.dist/ ({file_count} files)")
+            
+            # 注意: base/ 和 config/ 目录已经在项目根目录，Inno Setup 会直接读取
+            
             return True
             
         except Exception as e:
-            print(f"❌ ERROR: Failed to create package: {e}")
+            print(f"❌ ERROR: Failed to organize build output: {e}")
+            import traceback
+            traceback.print_exc()
             return False
     
     def build_installer(self) -> bool:
-        """构建安装器，内嵌app包"""
+        """使用 Inno Setup 构建安装器"""
         print("\n" + "="*80)
-        print("🔧 Building Installer")
+        print("🔧 Building Installer with Inno Setup")
         print("="*80)
         
         start_time = time.time()
-        installer_build_dir = self.build_dir / "temp_installer"
-        installer_build_dir.mkdir(parents=True, exist_ok=True)
         
-        installer_script = Path("src_installer") / "installer.py"
+        # 导入 Inno Setup 构建器
+        from .inno_builder import InnoSetupBuilder
+        inno = InnoSetupBuilder()
         
-        if not installer_script.exists():
-            print(f"❌ ERROR: Installer script not found: {installer_script}")
+        if not inno.is_available():
+            print("❌ ERROR: Inno Setup not available!")
             return False
         
-        print(f"⏳ Building installer...")
-        print(f"📁 Build directory: {installer_build_dir.absolute()}")
-        print(f"📦 App package: {self.app_package_zip.absolute()}")
-        
-        # 验证app包存在
-        if not self.app_package_zip.exists():
-            print(f"❌ ERROR: App package not found: {self.app_package_zip}")
+        # 检查 setup.iss 脚本
+        script_path = Path("setup.iss")
+        if not script_path.exists():
+            print(f"❌ ERROR: Inno Setup script not found: {script_path}")
             return False
         
-        pkg_size_mb = self.app_package_zip.stat().st_size / (1024 * 1024)
-        print(f"📦 App package size: {pkg_size_mb:.2f} MB")
+        print(f"⏳ Building installer with Inno Setup...")
         
-        # 构建命令
-        cmd = [
-            sys.executable, "-m", "nuitka",
-            "--standalone",
-            "--onefile",
-            f"--output-dir={installer_build_dir}",
-            "--output-filename=Minecraft_FRP_Installer.exe",
-            "--enable-plugin=pyside6",
-            f"--include-data-files={self.app_package_zip}=MinecraftFRP.zip",
-            "--windows-console-mode=disable",
-            "--company-name=MitaHill",
-            "--product-name=MinecraftFRP Installer",
-            "--file-version=" + self.config.get_version_string(),
-            "--product-version=" + self.config.get_version_string(),
-            "--copyright=Copyright (c) 2025 MitaHill",
-            "--assume-yes-for-downloads",
-            str(installer_script)
-        ]
-        
-        if not self.args.fast:
-            cmd.append("--lto=yes")
-        
-        print("📝 Nuitka command:")
-        print("   " + " ".join(cmd))
-        
-        # 执行构建
-        import subprocess
-        print("\n▶️  Starting Nuitka compilation...")
-        result = subprocess.run(cmd, capture_output=False)
-        
-        if result.returncode != 0:
-            print(f"❌ ERROR: Installer build failed with exit code {result.returncode}")
+        # 确保所有构建产物都在正确位置
+        build_output_dir = self.dist_dir / "MinecraftFRP_build"
+        if not build_output_dir.exists():
+            print(f"❌ ERROR: Build output directory not found: {build_output_dir}")
             return False
         
-        # 查找生成的exe
-        installer_exe = installer_build_dir / "Minecraft_FRP_Installer.exe"
+        print(f"📁 Build output: {build_output_dir.absolute()}")
+        print(f"📦 Launcher: {self.launcher_exe_path}")
+        print(f"📦 Main app: {self.main_app_dir}")
+        
+        # 使用 Inno Setup 编译
+        if not inno.build(script_path, output_dir=self.dist_dir):
+            print("❌ ERROR: Inno Setup compilation failed!")
+            return False
+        
+        # 查找生成的安装器
+        output_filename = inno.get_output_filename(script_path)
+        if not output_filename:
+            output_filename = f"MinecraftFRP_Setup_{self.config.get_version_string()}"
+        
+        installer_exe = self.dist_dir / f"{output_filename}.exe"
+        
         print(f"\n🔍 Looking for installer at: {installer_exe.absolute()}")
+        
+        if not installer_exe.exists():
+            print(f"❌ ERROR: Installer exe not found!")
+            # 尝试查找 dist 目录中的 exe 文件
+            print(f"📁 Contents of {self.dist_dir}:")
+            if self.dist_dir.exists():
+                for item in self.dist_dir.iterdir():
+                    if item.suffix == '.exe':
+                        print(f"  Found: {item.name}")
+                        installer_exe = item
+                        break
+        
+        if not installer_exe.exists():
+            print("❌ ERROR: Could not find generated installer!")
+            return False
+        
+        installer_size_mb = installer_exe.stat().st_size / (1024 * 1024)
+        print(f"✅ Found {installer_exe.name} ({installer_size_mb:.2f} MB)")
+        
+        self.installer_exe_path = installer_exe
+        self.installer_build_time = time.time() - start_time
+        
+        print(f"✅ Installer built successfully in {self.installer_build_time:.2f}s")
+        print(f"   Location: {installer_exe}")
+        
+        return True
         
         if not installer_exe.exists():
             print(f"❌ ERROR: Installer exe not found!")
@@ -364,9 +395,9 @@ class V2Builder:
         return True
     
     def move_to_dist(self) -> bool:
-        """移动到dist目录"""
+        """移动installer到最终dist目录"""
         print("\n" + "="*80)
-        print("📦 Moving Artifacts to dist/")
+        print("📦 Finalizing Installer Location")
         print("="*80)
         
         current_version = self.config.get_version_string()
@@ -383,29 +414,21 @@ class V2Builder:
         source_size_mb = self.installer_exe_path.stat().st_size / (1024 * 1024)
         print(f"📊 Source file size: {source_size_mb:.2f} MB")
         
-        # 清理旧dist
+        # 清理并创建目标目录
         if final_dist_dir.exists():
-            print(f"🗑️  Removing old dist directory...")
-            try:
-                shutil.rmtree(final_dist_dir)
-                print(f"✅ Old dist removed")
-            except Exception as e:
-                print(f"⚠️  Warning: Could not remove old dist: {e}")
-        
-        print(f"📁 Creating dist directory...")
+            shutil.rmtree(final_dist_dir)
         final_dist_dir.mkdir(parents=True, exist_ok=True)
-        print(f"✅ Dist directory created")
         
-        # 复制installer
+        # 复制installer并改名
         try:
-            final_installer = final_dist_dir / "Minecraft_FRP_Installer.exe"
+            final_installer = final_dist_dir / f"MinecraftFRP_Setup_{current_version}.exe"
             print(f"📋 Copying installer...")
             print(f"   From: {self.installer_exe_path}")
             print(f"   To:   {final_installer}")
             
             shutil.copy2(self.installer_exe_path, final_installer)
             
-            # 验证复制结果
+            # 验证
             if not final_installer.exists():
                 print(f"❌ ERROR: Installer not found after copy!")
                 return False
@@ -413,10 +436,16 @@ class V2Builder:
             copied_size_mb = final_installer.stat().st_size / (1024 * 1024)
             print(f"✅ Copied successfully ({copied_size_mb:.2f} MB)")
             
-            # 更新引用（重要！）
-            print(f"🔄 Updating installer path reference...")
+            # 更新引用
             self.installer_exe_path = final_installer
-            print(f"✅ New path: {self.installer_exe_path}")
+            
+            print(f"✅ Installer: {final_installer.name}")
+            
+            return True
+            
+        except Exception as e:
+            print(f"❌ ERROR: Failed to copy installer: {e}")
+            return False
             
             # 再次验证文件存在
             print(f"🔍 Final verification: {self.installer_exe_path.exists()}")

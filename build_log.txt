@@ -1,0 +1,695 @@
+Nuitka-Options: Used command line options:
+Nuitka-Options:   --standalone --onefile --output-dir=build\temp_launcher --output-filename=launcher.exe --enable-plugin=pyside6 --nofollow-import-to=OpenSSL --nofollow-import-to=cryptography --windows-console-mode=disable --company-name=MitaHill --product-name="MinecraftFRP Launcher" --file-version=0.5.32 --product-version=0.5.32 --copyright="Copyright (c) 2025 MitaHill" --assume-yes-for-downloads src_launcher\launcher.py
+Nuitka: Starting Python compilation with:
+Nuitka:   Version '2.8.9' on Python 3.9 (flavor 'CPython Official') commercial grade 'not installed'.
+Nuitka: Completed Python level compilation and optimization.
+Nuitka: Generating source code for C backend compiler.
+Nuitka: Running data composer tool for optimal constant value handling.
+Nuitka: Running C compilation via Scons.
+Nuitka-Scons: Backend C compiler: cl (cl 14.5).
+Nuitka-Scons: Backend C linking with 102 files (no progress information available for this stage).
+Nuitka-Scons: Compiled 102 C files using clcache with 3 cache hits and 99 cache misses.
+Nuitka-Plugins:pyside6: Including Qt plugins 'iconengines,imageformats,platforms,styles,tls' below 'PySide6\qt-plugins'.
+Nuitka-Plugins:dll-files: Found 4 files DLLs from shiboken6 installation.
+Nuitka-Plugins:data-files: Included data file 'certifi\cacert.pem' due to package data for 'certifi'.
+Nuitka-Onefile: Creating single file from dist folder, this may take a while.
+Nuitka-Onefile: Running bootstrap binary compilation via Scons.
+Nuitka-Scons: Onefile C compiler: cl (cl 14.5).
+Nuitka-Scons: Onefile C linking.
+Nuitka-Scons: Compiled 1 C files using clcache with 0 cache hits and 1 cache misses.
+Nuitka-Onefile: Using compression for onefile payload.
+Nuitka-Onefile: Onefile payload compression ratio (29.57%) size 77737378 to 22984711.
+Nuitka-Onefile: Keeping onefile build directory 'build\temp_launcher\launcher.onefile-build'.
+Nuitka: Keeping dist folder 'build\temp_launcher\launcher.dist' for inspection, no need to use it.
+Nuitka: Keeping build directory 'build\temp_launcher\launcher.build'.
+Nuitka: Successfully created 'D:\PycharmProjects\MinecraftFRP\build\temp_launcher\launcher.exe'.
+Nuitka-Options: Used command line options:
+Nuitka-Options:   --standalone --output-dir=build\temp_main_app --output-filename=MinecraftFRP.exe --enable-plugin=pyside6 --include-data-dir=base=base --include-data-files=config/app_config.yaml=config/app_config.yaml --windows-console-mode=disable --company-name=MitaHill --product-name=MinecraftFRP --file-version=0.5.32 --product-version=0.5.32 --copyright="Copyright (c) 2025 MitaHill" --assume-yes-for-downloads app.py
+Nuitka: Starting Python compilation with:
+Nuitka:   Version '2.8.9' on Python 3.9 (flavor 'CPython Official') commercial grade 'not installed'.
+Nuitka: Completed Python level compilation and optimization.
+Nuitka: Generating source code for C backend compiler.
+Nuitka: Running data composer tool for optimal constant value handling.
+Nuitka: Running C compilation via Scons.
+Nuitka-Scons: Backend C compiler: cl (cl 14.5).
+Nuitka-Scons: Backend C linking with 402 files (no progress information available for this stage).
+Nuitka-Scons: Compiled 402 C files using clcache with 336 cache hits and 66 cache misses.
+Nuitka-Plugins:pyside6: Including Qt plugins 'iconengines,imageformats,platforms,styles,tls' below 'PySide6\qt-plugins'.
+Nuitka-Plugins:pyside6: Including QtWebEngine executable.
+Nuitka-Plugins:dll-files: Found 4 files DLLs from shiboken6 installation.
+Nuitka-Options: Included data file 'config\app_config.yaml' due to specified data file 'config/app_config.yaml=config/app_config.yaml' on command line.
+Nuitka-Options: Included data file 'base\logo.ico' due to specified data dir 'base' on command line.
+Nuitka-Plugins:data-files: Included data file 'Crypto\Util\.keep_dir.txt' due to empty dir needed for 'Crypto.Util._raw_api'.
+Nuitka-Plugins:pyside6: Included data file 'qt6.conf' due to QtWebEngine needs Qt configuration file.
+Nuitka-Plugins:pyside6: Included data file 'icudtl.dat' due to Qt resources.
+Nuitka-Plugins:pyside6: Included data file 'qtwebengine_devtools_resources.debug.pak' due to Qt resources.
+Nuitka-Plugins:pyside6: Included data file 'qtwebengine_devtools_resources.pak' due to Qt resources.
+Nuitka-Plugins:pyside6: Included data file 'qtwebengine_resources.debug.pak' due to Qt resources.
+Nuitka-Plugins:pyside6: Included data file 'qtwebengine_resources.pak' due to Qt resources.
+Nuitka-Plugins:pyside6: Included data file 'qtwebengine_resources_100p.debug.pak' due to Qt resources.
+Nuitka-Plugins:pyside6: Included data file 'qtwebengine_resources_100p.pak' due to Qt resources.
+Nuitka-Plugins:pyside6: Included data file 'qtwebengine_resources_200p.debug.pak' due to Qt resources.
+Nuitka-Plugins:pyside6: Included data file 'qtwebengine_resources_200p.pak' due to Qt resources.
+Nuitka-Plugins:pyside6: Included data file 'v8_context_snapshot.bin' due to Qt resources.
+Nuitka-Plugins:pyside6: Included 352 data files due to Qt translation.
+Nuitka-Plugins:data-files: Included data file 'certifi\cacert.pem' due to package data for 'certifi'.
+Nuitka: Keeping build directory 'build\temp_main_app\app.build'.
+Nuitka: Successfully created 'D:\PycharmProjects\MinecraftFRP\build\temp_main_app\app.dist\MinecraftFRP.exe'.
+鉁?Loaded cicd.yaml
+================================================================================
+ 馃殌 MinecraftFRP Build Script - V2 Installer Architecture
+================================================================================
+
+馃搵 Verifying dependencies...
+   鉁?Found: base/frpc.exe
+   鉁?Found: base/new-frpc.exe
+   鉁?Found: base/tracert_gui.exe
+   鉁?Found: base/logo.ico
+   鉁?Found: config/special_nodes.json
+   鉁?Found: src_updater/main.py
+   鉁?Found: app.py
+鉁?All dependencies verified.
+
+
+馃摝 V2 Build Configuration:
+   Fast Build: Yes
+   Deploy: No
+
+鉁?Python: D:\PycharmProjects\MinecraftFRP\.venv\Scripts\python.exe
+鉁?Nuitka cache: build\.nuitka-cache
+鉁?Updated src/version.py to 0.5.32 (6e8ac5d)
+
+================================================================================
+馃敡 Building Launcher (launcher.exe)
+================================================================================
+鈴?Building launcher from src_launcher\launcher.py...
+馃搧 Build directory: D:\PycharmProjects\MinecraftFRP\build\temp_launcher
+馃摑 Nuitka command:
+   D:\PycharmProjects\MinecraftFRP\.venv\Scripts\python.exe -m nuitka --standalone --onefile --output-dir=build\temp_launcher --output-filename=launcher.exe --enable-plugin=pyside6 --nofollow-import-to=OpenSSL --nofollow-import-to=cryptography --windows-console-mode=disable --company-name=MitaHill --product-name=MinecraftFRP Launcher --file-version=0.5.32 --product-version=0.5.32 --copyright=Copyright (c) 2025 MitaHill --assume-yes-for-downloads src_launcher\launcher.py
+
+鈻讹笍  Starting Nuitka compilation...
+
+馃攳 Looking for launcher.exe at: D:\PycharmProjects\MinecraftFRP\build\temp_launcher\launcher.exe
+鉁?Found launcher.exe (22.00 MB)
+鉁?Launcher built successfully in 268.12s
+   Location: build\temp_launcher\launcher.exe
+
+================================================================================
+馃敡 Building Main Application (Directory Mode)
+================================================================================
+鈴?Building main application...
+馃搧 Build directory: D:\PycharmProjects\MinecraftFRP\build\temp_main_app
+馃摑 Nuitka command:
+   D:\PycharmProjects\MinecraftFRP\.venv\Scripts\python.exe -m nuitka --standalone --output-dir=build\temp_main_app --output-filename=MinecraftFRP.exe --enable-plugin=pyside6 --include-data-dir=base=base --include-data-files=config/app_config.yaml=config/app_config.yaml --windows-console-mode=disable --company-name=MitaHill --product-name=MinecraftFRP --file-version=0.5.32 --product-version=0.5.32 --copyright=Copyright (c) 2025 MitaHill --assume-yes-for-downloads app.py
+
+鈻讹笍  Starting Nuitka compilation...
+
+馃攳 Looking for app.dist at: D:\PycharmProjects\MinecraftFRP\build\temp_main_app\app.dist
+鉁?Found MinecraftFRP.exe (24.89 MB)
+鉁?app.dist contains 478 files
+鉁?Main app built successfully in 345.38s
+   Location: build\temp_main_app\app.dist
+
+================================================================================
+馃摝 Creating Application Package
+================================================================================
+鈴?Packaging files to build\temp_package\MinecraftFRP_0.5.32.zip...
+   Added: icudtl.dat
+   Added: libcrypto-1_1.dll
+   Added: libffi-7.dll
+   Added: libssl-1_1.dll
+   Added: MinecraftFRP.exe
+   Added: msvcp140.dll
+   Added: msvcp140_1.dll
+   Added: msvcp140_2.dll
+   Added: pyexpat.pyd
+   Added: pyside6.abi3.dll
+   Added: python3.dll
+   Added: python39.dll
+   Added: qt6.conf
+   Added: qt6core.dll
+   Added: qt6gui.dll
+   Added: qt6network.dll
+   Added: qt6opengl.dll
+   Added: qt6pdf.dll
+   Added: qt6positioning.dll
+   Added: qt6printsupport.dll
+   Added: qt6qml.dll
+   Added: qt6qmlmeta.dll
+   Added: qt6qmlmodels.dll
+   Added: qt6qmlworkerscript.dll
+   Added: qt6quick.dll
+   Added: qt6quickwidgets.dll
+   Added: qt6svg.dll
+   Added: qt6webchannel.dll
+   Added: qt6webenginecore.dll
+   Added: qt6webenginewidgets.dll
+   Added: qt6widgets.dll
+   Added: QtWebEngineProcess.exe
+   Added: qtwebengine_devtools_resources.debug.pak
+   Added: qtwebengine_devtools_resources.pak
+   Added: qtwebengine_resources.debug.pak
+   Added: qtwebengine_resources.pak
+   Added: qtwebengine_resources_100p.debug.pak
+   Added: qtwebengine_resources_100p.pak
+   Added: qtwebengine_resources_200p.debug.pak
+   Added: qtwebengine_resources_200p.pak
+   Added: select.pyd
+   Added: shiboken6.abi3.dll
+   Added: unicodedata.pyd
+   Added: v8_context_snapshot.bin
+   Added: vcruntime140.dll
+   Added: vcruntime140_1.dll
+   Added: _asyncio.pyd
+   Added: _bz2.pyd
+   Added: _cffi_backend.pyd
+   Added: _ctypes.pyd
+   Added: _decimal.pyd
+   Added: _hashlib.pyd
+   Added: _lzma.pyd
+   Added: _multiprocessing.pyd
+   Added: _overlapped.pyd
+   Added: _queue.pyd
+   Added: _socket.pyd
+   Added: _ssl.pyd
+   Added: base\logo.ico
+   Added: bcrypt\_bcrypt.pyd
+   Added: certifi\cacert.pem
+   Added: charset_normalizer\md.pyd
+   Added: charset_normalizer\md__mypyc.pyd
+   Added: config\app_config.yaml
+   Added: Crypto\Cipher\_raw_aes.pyd
+   Added: Crypto\Cipher\_raw_aesni.pyd
+   Added: Crypto\Cipher\_raw_cbc.pyd
+   Added: Crypto\Cipher\_raw_cfb.pyd
+   Added: Crypto\Cipher\_raw_ctr.pyd
+   Added: Crypto\Cipher\_raw_ecb.pyd
+   Added: Crypto\Cipher\_raw_eksblowfish.pyd
+   Added: Crypto\Cipher\_raw_ocb.pyd
+   Added: Crypto\Cipher\_raw_ofb.pyd
+   Added: Crypto\Cipher\_Salsa20.pyd
+   Added: Crypto\Hash\_BLAKE2s.pyd
+   Added: Crypto\Hash\_ghash_clmul.pyd
+   Added: Crypto\Hash\_ghash_portable.pyd
+   Added: Crypto\Hash\_keccak.pyd
+   Added: Crypto\Hash\_MD5.pyd
+   Added: Crypto\Hash\_SHA1.pyd
+   Added: Crypto\Hash\_SHA224.pyd
+   Added: Crypto\Hash\_SHA256.pyd
+   Added: Crypto\Hash\_SHA384.pyd
+   Added: Crypto\Hash\_SHA512.pyd
+   Added: Crypto\Protocol\_scrypt.pyd
+   Added: Crypto\Util\.keep_dir.txt
+   Added: Crypto\Util\_cpuid_c.pyd
+   Added: Crypto\Util\_strxor.pyd
+   Added: cryptography\hazmat\bindings\_rust.pyd
+   Added: nacl\_sodium.pyd
+   Added: PySide6\QtCore.pyd
+   Added: PySide6\QtGui.pyd
+   Added: PySide6\QtNetwork.pyd
+   Added: PySide6\QtPrintSupport.pyd
+   Added: PySide6\QtSvg.pyd
+   Added: PySide6\QtWebChannel.pyd
+   Added: PySide6\QtWebEngineCore.pyd
+   Added: PySide6\QtWebEngineWidgets.pyd
+   Added: PySide6\QtWidgets.pyd
+   Added: PySide6\qt-plugins\iconengines\qsvgicon.dll
+   Added: PySide6\qt-plugins\imageformats\qgif.dll
+   Added: PySide6\qt-plugins\imageformats\qicns.dll
+   Added: PySide6\qt-plugins\imageformats\qico.dll
+   Added: PySide6\qt-plugins\imageformats\qjpeg.dll
+   Added: PySide6\qt-plugins\imageformats\qpdf.dll
+   Added: PySide6\qt-plugins\imageformats\qsvg.dll
+   Added: PySide6\qt-plugins\imageformats\qtga.dll
+   Added: PySide6\qt-plugins\imageformats\qtiff.dll
+   Added: PySide6\qt-plugins\imageformats\qwbmp.dll
+   Added: PySide6\qt-plugins\imageformats\qwebp.dll
+   Added: PySide6\qt-plugins\platforms\qdirect2d.dll
+   Added: PySide6\qt-plugins\platforms\qminimal.dll
+   Added: PySide6\qt-plugins\platforms\qoffscreen.dll
+   Added: PySide6\qt-plugins\platforms\qwindows.dll
+   Added: PySide6\qt-plugins\styles\qmodernwindowsstyle.dll
+   Added: PySide6\qt-plugins\tls\qcertonlybackend.dll
+   Added: PySide6\qt-plugins\tls\qopensslbackend.dll
+   Added: PySide6\qt-plugins\tls\qschannelbackend.dll
+   Added: PySide6\translations\assistant_ar.qm
+   Added: PySide6\translations\assistant_bg.qm
+   Added: PySide6\translations\assistant_cs.qm
+   Added: PySide6\translations\assistant_da.qm
+   Added: PySide6\translations\assistant_de.qm
+   Added: PySide6\translations\assistant_en.qm
+   Added: PySide6\translations\assistant_es.qm
+   Added: PySide6\translations\assistant_fr.qm
+   Added: PySide6\translations\assistant_hr.qm
+   Added: PySide6\translations\assistant_hu.qm
+   Added: PySide6\translations\assistant_ja.qm
+   Added: PySide6\translations\assistant_ka.qm
+   Added: PySide6\translations\assistant_ko.qm
+   Added: PySide6\translations\assistant_nl.qm
+   Added: PySide6\translations\assistant_pl.qm
+   Added: PySide6\translations\assistant_pt_BR.qm
+   Added: PySide6\translations\assistant_ru.qm
+   Added: PySide6\translations\assistant_sk.qm
+   Added: PySide6\translations\assistant_sl.qm
+   Added: PySide6\translations\assistant_sv.qm
+   Added: PySide6\translations\assistant_tr.qm
+   Added: PySide6\translations\assistant_uk.qm
+   Added: PySide6\translations\assistant_zh_CN.qm
+   Added: PySide6\translations\assistant_zh_TW.qm
+   Added: PySide6\translations\designer_ar.qm
+   Added: PySide6\translations\designer_bg.qm
+   Added: PySide6\translations\designer_cs.qm
+   Added: PySide6\translations\designer_da.qm
+   Added: PySide6\translations\designer_de.qm
+   Added: PySide6\translations\designer_en.qm
+   Added: PySide6\translations\designer_es.qm
+   Added: PySide6\translations\designer_fr.qm
+   Added: PySide6\translations\designer_hr.qm
+   Added: PySide6\translations\designer_hu.qm
+   Added: PySide6\translations\designer_ja.qm
+   Added: PySide6\translations\designer_ka.qm
+   Added: PySide6\translations\designer_ko.qm
+   Added: PySide6\translations\designer_nl.qm
+   Added: PySide6\translations\designer_pl.qm
+   Added: PySide6\translations\designer_ru.qm
+   Added: PySide6\translations\designer_sk.qm
+   Added: PySide6\translations\designer_sl.qm
+   Added: PySide6\translations\designer_sv.qm
+   Added: PySide6\translations\designer_tr.qm
+   Added: PySide6\translations\designer_uk.qm
+   Added: PySide6\translations\designer_zh_CN.qm
+   Added: PySide6\translations\designer_zh_TW.qm
+   Added: PySide6\translations\linguist_ar.qm
+   Added: PySide6\translations\linguist_bg.qm
+   Added: PySide6\translations\linguist_cs.qm
+   Added: PySide6\translations\linguist_da.qm
+   Added: PySide6\translations\linguist_de.qm
+   Added: PySide6\translations\linguist_en.qm
+   Added: PySide6\translations\linguist_es.qm
+   Added: PySide6\translations\linguist_fr.qm
+   Added: PySide6\translations\linguist_hr.qm
+   Added: PySide6\translations\linguist_hu.qm
+   Added: PySide6\translations\linguist_it.qm
+   Added: PySide6\translations\linguist_ja.qm
+   Added: PySide6\translations\linguist_ka.qm
+   Added: PySide6\translations\linguist_ko.qm
+   Added: PySide6\translations\linguist_nl.qm
+   Added: PySide6\translations\linguist_pl.qm
+   Added: PySide6\translations\linguist_ru.qm
+   Added: PySide6\translations\linguist_sk.qm
+   Added: PySide6\translations\linguist_sl.qm
+   Added: PySide6\translations\linguist_sv.qm
+   Added: PySide6\translations\linguist_tr.qm
+   Added: PySide6\translations\linguist_uk.qm
+   Added: PySide6\translations\linguist_zh_CN.qm
+   Added: PySide6\translations\linguist_zh_TW.qm
+   Added: PySide6\translations\qtbase_ar.qm
+   Added: PySide6\translations\qtbase_bg.qm
+   Added: PySide6\translations\qtbase_ca.qm
+   Added: PySide6\translations\qtbase_cs.qm
+   Added: PySide6\translations\qtbase_da.qm
+   Added: PySide6\translations\qtbase_de.qm
+   Added: PySide6\translations\qtbase_en.qm
+   Added: PySide6\translations\qtbase_es.qm
+   Added: PySide6\translations\qtbase_fa.qm
+   Added: PySide6\translations\qtbase_fi.qm
+   Added: PySide6\translations\qtbase_fr.qm
+   Added: PySide6\translations\qtbase_gd.qm
+   Added: PySide6\translations\qtbase_he.qm
+   Added: PySide6\translations\qtbase_hr.qm
+   Added: PySide6\translations\qtbase_hu.qm
+   Added: PySide6\translations\qtbase_it.qm
+   Added: PySide6\translations\qtbase_ja.qm
+   Added: PySide6\translations\qtbase_ka.qm
+   Added: PySide6\translations\qtbase_ko.qm
+   Added: PySide6\translations\qtbase_lg.qm
+   Added: PySide6\translations\qtbase_lv.qm
+   Added: PySide6\translations\qtbase_nl.qm
+   Added: PySide6\translations\qtbase_nn.qm
+   Added: PySide6\translations\qtbase_pl.qm
+   Added: PySide6\translations\qtbase_pt_BR.qm
+   Added: PySide6\translations\qtbase_ru.qm
+   Added: PySide6\translations\qtbase_sk.qm
+   Added: PySide6\translations\qtbase_sv.qm
+   Added: PySide6\translations\qtbase_tr.qm
+   Added: PySide6\translations\qtbase_uk.qm
+   Added: PySide6\translations\qtbase_zh_CN.qm
+   Added: PySide6\translations\qtbase_zh_TW.qm
+   Added: PySide6\translations\qtconnectivity_bg.qm
+   Added: PySide6\translations\qtconnectivity_ca.qm
+   Added: PySide6\translations\qtconnectivity_da.qm
+   Added: PySide6\translations\qtconnectivity_de.qm
+   Added: PySide6\translations\qtconnectivity_en.qm
+   Added: PySide6\translations\qtconnectivity_es.qm
+   Added: PySide6\translations\qtconnectivity_hr.qm
+   Added: PySide6\translations\qtconnectivity_hu.qm
+   Added: PySide6\translations\qtconnectivity_ka.qm
+   Added: PySide6\translations\qtconnectivity_ko.qm
+   Added: PySide6\translations\qtconnectivity_nl.qm
+   Added: PySide6\translations\qtconnectivity_pl.qm
+   Added: PySide6\translations\qtconnectivity_pt_BR.qm
+   Added: PySide6\translations\qtconnectivity_ru.qm
+   Added: PySide6\translations\qtconnectivity_sv.qm
+   Added: PySide6\translations\qtconnectivity_tr.qm
+   Added: PySide6\translations\qtconnectivity_uk.qm
+   Added: PySide6\translations\qtconnectivity_zh_CN.qm
+   Added: PySide6\translations\qtdeclarative_ar.qm
+   Added: PySide6\translations\qtdeclarative_bg.qm
+   Added: PySide6\translations\qtdeclarative_ca.qm
+   Added: PySide6\translations\qtdeclarative_da.qm
+   Added: PySide6\translations\qtdeclarative_de.qm
+   Added: PySide6\translations\qtdeclarative_en.qm
+   Added: PySide6\translations\qtdeclarative_es.qm
+   Added: PySide6\translations\qtdeclarative_fa.qm
+   Added: PySide6\translations\qtdeclarative_fi.qm
+   Added: PySide6\translations\qtdeclarative_fr.qm
+   Added: PySide6\translations\qtdeclarative_hr.qm
+   Added: PySide6\translations\qtdeclarative_hu.qm
+   Added: PySide6\translations\qtdeclarative_ja.qm
+   Added: PySide6\translations\qtdeclarative_ka.qm
+   Added: PySide6\translations\qtdeclarative_ko.qm
+   Added: PySide6\translations\qtdeclarative_lv.qm
+   Added: PySide6\translations\qtdeclarative_nl.qm
+   Added: PySide6\translations\qtdeclarative_nn.qm
+   Added: PySide6\translations\qtdeclarative_pl.qm
+   Added: PySide6\translations\qtdeclarative_pt_BR.qm
+   Added: PySide6\translations\qtdeclarative_ru.qm
+   Added: PySide6\translations\qtdeclarative_sk.qm
+   Added: PySide6\translations\qtdeclarative_sv.qm
+   Added: PySide6\translations\qtdeclarative_tr.qm
+   Added: PySide6\translations\qtdeclarative_uk.qm
+   Added: PySide6\translations\qtdeclarative_zh_CN.qm
+   Added: PySide6\translations\qtdeclarative_zh_TW.qm
+   Added: PySide6\translations\qtlocation_bg.qm
+   Added: PySide6\translations\qtlocation_ca.qm
+   Added: PySide6\translations\qtlocation_da.qm
+   Added: PySide6\translations\qtlocation_de.qm
+   Added: PySide6\translations\qtlocation_en.qm
+   Added: PySide6\translations\qtlocation_es.qm
+   Added: PySide6\translations\qtlocation_fi.qm
+   Added: PySide6\translations\qtlocation_fr.qm
+   Added: PySide6\translations\qtlocation_hr.qm
+   Added: PySide6\translations\qtlocation_hu.qm
+   Added: PySide6\translations\qtlocation_ka.qm
+   Added: PySide6\translations\qtlocation_ko.qm
+   Added: PySide6\translations\qtlocation_nl.qm
+   Added: PySide6\translations\qtlocation_pl.qm
+   Added: PySide6\translations\qtlocation_pt_BR.qm
+   Added: PySide6\translations\qtlocation_ru.qm
+   Added: PySide6\translations\qtlocation_sv.qm
+   Added: PySide6\translations\qtlocation_tr.qm
+   Added: PySide6\translations\qtlocation_uk.qm
+   Added: PySide6\translations\qtlocation_zh_CN.qm
+   Added: PySide6\translations\qtmultimedia_ar.qm
+   Added: PySide6\translations\qtmultimedia_bg.qm
+   Added: PySide6\translations\qtmultimedia_ca.qm
+   Added: PySide6\translations\qtmultimedia_cs.qm
+   Added: PySide6\translations\qtmultimedia_da.qm
+   Added: PySide6\translations\qtmultimedia_de.qm
+   Added: PySide6\translations\qtmultimedia_en.qm
+   Added: PySide6\translations\qtmultimedia_es.qm
+   Added: PySide6\translations\qtmultimedia_fa.qm
+   Added: PySide6\translations\qtmultimedia_fi.qm
+   Added: PySide6\translations\qtmultimedia_fr.qm
+   Added: PySide6\translations\qtmultimedia_hr.qm
+   Added: PySide6\translations\qtmultimedia_hu.qm
+   Added: PySide6\translations\qtmultimedia_it.qm
+Nuitka-Options: Used command line options:
+Nuitka-Options:   --standalone --onefile --output-dir=build\temp_installer --output-filename=Minecraft_FRP_Installer.exe --enable-plugin=pyside6 --include-data-files=build\temp_package\MinecraftFRP_0.5.32.zip=MinecraftFRP.zip --windows-console-mode=disable --company-name=MitaHill --product-name="MinecraftFRP Installer" --file-version=0.5.32 --product-version=0.5.32 --copyright="Copyright (c) 2025 MitaHill" --assume-yes-for-downloads src_installer\installer.py
+Nuitka: Starting Python compilation with:
+Nuitka:   Version '2.8.9' on Python 3.9 (flavor 'CPython Official') commercial grade 'not installed'.
+Nuitka-Plugins:anti-bloat: Not including 'socket' automatically in order to avoid bloat, but this may cause: can break calls of 'email.utils.make_msgid()'.
+Nuitka: Completed Python level compilation and optimization.
+Nuitka: Generating source code for C backend compiler.
+Nuitka: Running data composer tool for optimal constant value handling.
+Nuitka: Running C compilation via Scons.
+Nuitka-Scons: Backend C compiler: cl (cl 14.5).
+Nuitka-Scons: Backend C linking with 22 files (no progress information available for this stage).
+Nuitka-Scons: Compiled 22 C files using clcache with 10 cache hits and 12 cache misses.
+Nuitka-Plugins:pyside6: Including Qt plugins 'iconengines,imageformats,platforms,styles,tls' below 'PySide6\qt-plugins'.
+Nuitka-Plugins:dll-files: Found 4 files DLLs from shiboken6 installation.
+Nuitka-Options: Included data file 'MinecraftFRP.zip' due to specified data file 'build\temp_package\MinecraftFRP_0.5.32.zip=MinecraftFRP.zip' on command line.
+Nuitka-Onefile: Creating single file from dist folder, this may take a while.
+Nuitka-Onefile: Running bootstrap binary compilation via Scons.
+Nuitka-Scons: Onefile C compiler: cl (cl 14.5).
+Nuitka-Scons: Onefile C linking.
+Nuitka-Scons: Compiled 1 C files using clcache with 0 cache hits and 1 cache misses.
+Nuitka-Onefile: Using compression for onefile payload.
+Nuitka-Onefile: Onefile payload compression ratio (81.15%) size 273499016 to 221934758.
+Nuitka-Onefile: Keeping onefile build directory 'build\temp_installer\installer.onefile-build'.
+Nuitka: Keeping dist folder 'build\temp_installer\installer.dist' for inspection, no need to use it.
+Nuitka: Keeping build directory 'build\temp_installer\installer.build'.
+Nuitka: Successfully created 'D:\PycharmProjects\MinecraftFRP\build\temp_installer\Minecraft_FRP_Installer.exe'.
+   Added: PySide6\translations\qtmultimedia_ja.qm
+   Added: PySide6\translations\qtmultimedia_ka.qm
+   Added: PySide6\translations\qtmultimedia_ko.qm
+   Added: PySide6\translations\qtmultimedia_nl.qm
+   Added: PySide6\translations\qtmultimedia_nn.qm
+   Added: PySide6\translations\qtmultimedia_pl.qm
+   Added: PySide6\translations\qtmultimedia_pt_BR.qm
+   Added: PySide6\translations\qtmultimedia_ru.qm
+   Added: PySide6\translations\qtmultimedia_sk.qm
+   Added: PySide6\translations\qtmultimedia_sv.qm
+   Added: PySide6\translations\qtmultimedia_tr.qm
+   Added: PySide6\translations\qtmultimedia_uk.qm
+   Added: PySide6\translations\qtmultimedia_zh_CN.qm
+   Added: PySide6\translations\qtmultimedia_zh_TW.qm
+   Added: PySide6\translations\qtserialport_de.qm
+   Added: PySide6\translations\qtserialport_en.qm
+   Added: PySide6\translations\qtserialport_es.qm
+   Added: PySide6\translations\qtserialport_ja.qm
+   Added: PySide6\translations\qtserialport_ka.qm
+   Added: PySide6\translations\qtserialport_ko.qm
+   Added: PySide6\translations\qtserialport_pl.qm
+   Added: PySide6\translations\qtserialport_ru.qm
+   Added: PySide6\translations\qtserialport_sv.qm
+   Added: PySide6\translations\qtserialport_tr.qm
+   Added: PySide6\translations\qtserialport_uk.qm
+   Added: PySide6\translations\qtserialport_zh_CN.qm
+   Added: PySide6\translations\qtwebengine_ca.qm
+   Added: PySide6\translations\qtwebengine_de.qm
+   Added: PySide6\translations\qtwebengine_en.qm
+   Added: PySide6\translations\qtwebengine_es.qm
+   Added: PySide6\translations\qtwebengine_ka.qm
+   Added: PySide6\translations\qtwebengine_ko.qm
+   Added: PySide6\translations\qtwebengine_lg.qm
+   Added: PySide6\translations\qtwebengine_pl.qm
+   Added: PySide6\translations\qtwebengine_ru.qm
+   Added: PySide6\translations\qtwebengine_sv.qm
+   Added: PySide6\translations\qtwebengine_tr.qm
+   Added: PySide6\translations\qtwebengine_uk.qm
+   Added: PySide6\translations\qtwebengine_zh_CN.qm
+   Added: PySide6\translations\qtwebsockets_ca.qm
+   Added: PySide6\translations\qtwebsockets_de.qm
+   Added: PySide6\translations\qtwebsockets_en.qm
+   Added: PySide6\translations\qtwebsockets_es.qm
+   Added: PySide6\translations\qtwebsockets_fr.qm
+   Added: PySide6\translations\qtwebsockets_ja.qm
+   Added: PySide6\translations\qtwebsockets_ka.qm
+   Added: PySide6\translations\qtwebsockets_ko.qm
+   Added: PySide6\translations\qtwebsockets_pl.qm
+   Added: PySide6\translations\qtwebsockets_ru.qm
+   Added: PySide6\translations\qtwebsockets_sv.qm
+   Added: PySide6\translations\qtwebsockets_tr.qm
+   Added: PySide6\translations\qtwebsockets_uk.qm
+   Added: PySide6\translations\qtwebsockets_zh_CN.qm
+   Added: PySide6\translations\qt_ar.qm
+   Added: PySide6\translations\qt_bg.qm
+   Added: PySide6\translations\qt_ca.qm
+   Added: PySide6\translations\qt_cs.qm
+   Added: PySide6\translations\qt_da.qm
+   Added: PySide6\translations\qt_de.qm
+   Added: PySide6\translations\qt_en.qm
+   Added: PySide6\translations\qt_es.qm
+   Added: PySide6\translations\qt_fa.qm
+   Added: PySide6\translations\qt_fi.qm
+   Added: PySide6\translations\qt_fr.qm
+   Added: PySide6\translations\qt_gd.qm
+   Added: PySide6\translations\qt_gl.qm
+   Added: PySide6\translations\qt_he.qm
+   Added: PySide6\translations\qt_help_ar.qm
+   Added: PySide6\translations\qt_help_bg.qm
+   Added: PySide6\translations\qt_help_ca.qm
+   Added: PySide6\translations\qt_help_cs.qm
+   Added: PySide6\translations\qt_help_da.qm
+   Added: PySide6\translations\qt_help_de.qm
+   Added: PySide6\translations\qt_help_en.qm
+   Added: PySide6\translations\qt_help_es.qm
+   Added: PySide6\translations\qt_help_fr.qm
+   Added: PySide6\translations\qt_help_gl.qm
+   Added: PySide6\translations\qt_help_hr.qm
+   Added: PySide6\translations\qt_help_hu.qm
+   Added: PySide6\translations\qt_help_it.qm
+   Added: PySide6\translations\qt_help_ja.qm
+   Added: PySide6\translations\qt_help_ka.qm
+   Added: PySide6\translations\qt_help_ko.qm
+   Added: PySide6\translations\qt_help_nl.qm
+   Added: PySide6\translations\qt_help_nn.qm
+   Added: PySide6\translations\qt_help_pl.qm
+   Added: PySide6\translations\qt_help_pt_BR.qm
+   Added: PySide6\translations\qt_help_ru.qm
+   Added: PySide6\translations\qt_help_sk.qm
+   Added: PySide6\translations\qt_help_sl.qm
+   Added: PySide6\translations\qt_help_sv.qm
+   Added: PySide6\translations\qt_help_tr.qm
+   Added: PySide6\translations\qt_help_uk.qm
+   Added: PySide6\translations\qt_help_zh_CN.qm
+   Added: PySide6\translations\qt_help_zh_TW.qm
+   Added: PySide6\translations\qt_hr.qm
+   Added: PySide6\translations\qt_hu.qm
+   Added: PySide6\translations\qt_it.qm
+   Added: PySide6\translations\qt_ja.qm
+   Added: PySide6\translations\qt_ka.qm
+   Added: PySide6\translations\qt_ko.qm
+   Added: PySide6\translations\qt_lg.qm
+   Added: PySide6\translations\qt_lt.qm
+   Added: PySide6\translations\qt_lv.qm
+   Added: PySide6\translations\qt_nl.qm
+   Added: PySide6\translations\qt_nn.qm
+   Added: PySide6\translations\qt_pl.qm
+   Added: PySide6\translations\qt_pt_BR.qm
+   Added: PySide6\translations\qt_pt_PT.qm
+   Added: PySide6\translations\qt_ru.qm
+   Added: PySide6\translations\qt_sk.qm
+   Added: PySide6\translations\qt_sl.qm
+   Added: PySide6\translations\qt_sv.qm
+   Added: PySide6\translations\qt_tr.qm
+   Added: PySide6\translations\qt_uk.qm
+   Added: PySide6\translations\qt_zh_CN.qm
+   Added: PySide6\translations\qt_zh_TW.qm
+   Added: PySide6\translations\qtwebengine_locales\am.pak
+   Added: PySide6\translations\qtwebengine_locales\ar.pak
+   Added: PySide6\translations\qtwebengine_locales\bg.pak
+   Added: PySide6\translations\qtwebengine_locales\bn.pak
+   Added: PySide6\translations\qtwebengine_locales\ca.pak
+   Added: PySide6\translations\qtwebengine_locales\cs.pak
+   Added: PySide6\translations\qtwebengine_locales\da.pak
+   Added: PySide6\translations\qtwebengine_locales\de.pak
+   Added: PySide6\translations\qtwebengine_locales\el.pak
+   Added: PySide6\translations\qtwebengine_locales\en-GB.pak
+   Added: PySide6\translations\qtwebengine_locales\en-US.pak
+   Added: PySide6\translations\qtwebengine_locales\es-419.pak
+   Added: PySide6\translations\qtwebengine_locales\es.pak
+   Added: PySide6\translations\qtwebengine_locales\et.pak
+   Added: PySide6\translations\qtwebengine_locales\fa.pak
+   Added: PySide6\translations\qtwebengine_locales\fi.pak
+   Added: PySide6\translations\qtwebengine_locales\fil.pak
+   Added: PySide6\translations\qtwebengine_locales\fr.pak
+   Added: PySide6\translations\qtwebengine_locales\gu.pak
+   Added: PySide6\translations\qtwebengine_locales\he.pak
+   Added: PySide6\translations\qtwebengine_locales\hi.pak
+   Added: PySide6\translations\qtwebengine_locales\hr.pak
+   Added: PySide6\translations\qtwebengine_locales\hu.pak
+   Added: PySide6\translations\qtwebengine_locales\id.pak
+   Added: PySide6\translations\qtwebengine_locales\it.pak
+   Added: PySide6\translations\qtwebengine_locales\ja.pak
+   Added: PySide6\translations\qtwebengine_locales\kn.pak
+   Added: PySide6\translations\qtwebengine_locales\ko.pak
+   Added: PySide6\translations\qtwebengine_locales\lt.pak
+   Added: PySide6\translations\qtwebengine_locales\lv.pak
+   Added: PySide6\translations\qtwebengine_locales\ml.pak
+   Added: PySide6\translations\qtwebengine_locales\mr.pak
+   Added: PySide6\translations\qtwebengine_locales\ms.pak
+   Added: PySide6\translations\qtwebengine_locales\nb.pak
+   Added: PySide6\translations\qtwebengine_locales\nl.pak
+   Added: PySide6\translations\qtwebengine_locales\pl.pak
+   Added: PySide6\translations\qtwebengine_locales\pt-BR.pak
+   Added: PySide6\translations\qtwebengine_locales\pt-PT.pak
+   Added: PySide6\translations\qtwebengine_locales\ro.pak
+   Added: PySide6\translations\qtwebengine_locales\ru.pak
+   Added: PySide6\translations\qtwebengine_locales\sk.pak
+   Added: PySide6\translations\qtwebengine_locales\sl.pak
+   Added: PySide6\translations\qtwebengine_locales\sr.pak
+   Added: PySide6\translations\qtwebengine_locales\sv.pak
+   Added: PySide6\translations\qtwebengine_locales\sw.pak
+   Added: PySide6\translations\qtwebengine_locales\ta.pak
+   Added: PySide6\translations\qtwebengine_locales\te.pak
+   Added: PySide6\translations\qtwebengine_locales\th.pak
+   Added: PySide6\translations\qtwebengine_locales\tr.pak
+   Added: PySide6\translations\qtwebengine_locales\uk.pak
+   Added: PySide6\translations\qtwebengine_locales\vi.pak
+   Added: PySide6\translations\qtwebengine_locales\zh-CN.pak
+   Added: PySide6\translations\qtwebengine_locales\zh-TW.pak
+   Added: shiboken6\msvcp140.dll
+   Added: shiboken6\msvcp140_1.dll
+   Added: shiboken6\msvcp140_2.dll
+   Added: shiboken6\msvcp140_codecvt_ids.dll
+   Added: shiboken6\Shiboken.pyd
+   Added: yaml\_yaml.pyd
+   Added: zstandard\backend_c.pyd
+   Added: zstandard\_cffi.pyd
+   Added: launcher.exe
+鉁?Package created: build\temp_package\MinecraftFRP_0.5.32.zip
+
+================================================================================
+馃敡 Building Installer
+================================================================================
+鈴?Building installer...
+馃搧 Build directory: D:\PycharmProjects\MinecraftFRP\build\temp_installer
+馃摝 App package: D:\PycharmProjects\MinecraftFRP\build\temp_package\MinecraftFRP_0.5.32.zip
+馃摝 App package size: 195.41 MB
+馃摑 Nuitka command:
+   D:\PycharmProjects\MinecraftFRP\.venv\Scripts\python.exe -m nuitka --standalone --onefile --output-dir=build\temp_installer --output-filename=Minecraft_FRP_Installer.exe --enable-plugin=pyside6 --include-data-files=build\temp_package\MinecraftFRP_0.5.32.zip=MinecraftFRP.zip --windows-console-mode=disable --company-name=MitaHill --product-name=MinecraftFRP Installer --file-version=0.5.32 --product-version=0.5.32 --copyright=Copyright (c) 2025 MitaHill --assume-yes-for-downloads src_installer\installer.py
+
+鈻讹笍  Starting Nuitka compilation...
+
+馃攳 Looking for installer at: D:\PycharmProjects\MinecraftFRP\build\temp_installer\Minecraft_FRP_Installer.exe
+鉁?Found Minecraft_FRP_Installer.exe (211.74 MB)
+鉁?Installer built successfully in 176.08s
+   Location: build\temp_installer\Minecraft_FRP_Installer.exe
+
+================================================================================
+馃摝 Moving Artifacts to dist/
+================================================================================
+馃搧 Target directory: D:\PycharmProjects\MinecraftFRP\dist\MinecraftFRP_0.5.32_installer
+馃搫 Source installer: D:\PycharmProjects\MinecraftFRP\build\temp_installer\Minecraft_FRP_Installer.exe
+馃搳 Source file size: 211.74 MB
+馃搧 Creating dist directory...
+鉁?Dist directory created
+馃搵 Copying installer...
+   From: build\temp_installer\Minecraft_FRP_Installer.exe
+   To:   dist\MinecraftFRP_0.5.32_installer\Minecraft_FRP_Installer.exe
+鉁?Copied successfully (211.74 MB)
+馃攧 Updating installer path reference...
+鉁?New path: dist\MinecraftFRP_0.5.32_installer\Minecraft_FRP_Installer.exe
+馃攳 Final verification: True
+鉁?Artifacts moved successfully
+
+================================================================================
+馃搵 Generating version.json
+================================================================================
+
+INFO: Generating release notes from Git history...
+INFO: Attempting to fetch live version info from https://z.clash.ink/chfs/shared/MinecraftFRP/Data/version.json
+[2025-12-10 14:33:55] [INFO] [HttpManager] Fetching https://z.clash.ink/chfs/shared/MinecraftFRP/Data/version.json with custom TLS adapter and SSL verification
+[2025-12-10 14:33:55] [INFO] [HttpManager] Successfully fetched https://z.clash.ink/chfs/shared/MinecraftFRP/Data/version.json
+WARNING: 'git_hash' not found or is 'unknown' in live version.json. Proceeding to fallback.
+WARNING: Fallback - No Git tags found.
+WARNING: Fallback - Using last 5 commits for release notes.
+INFO: Generating logs for range: 'HEAD~5..HEAD'
+OK: Successfully generated release notes.
+鉁?SHA256: 7cee9ea481fd656185b0304fb5d44e6db8df9105dc7ff70b341d7994b6b6f8eb
+鉁?Size: 211.74 MB
+鉁?Generated version.json at dist\minecraft_version_index\version.json
+鉁?version.json: dist\minecraft_version_index\version.json
+
+鈴笍  Skipping deployment (use --upload to deploy).
+
+馃Ч Cleaning build directory...
+馃搧 Build directory: D:\PycharmProjects\MinecraftFRP\build
+馃攳 Verifying installer location before cleanup...
+   Installer path: dist\MinecraftFRP_0.5.32_installer\Minecraft_FRP_Installer.exe
+   Exists: True
+馃棏锔? Removing build directory...
+鉁?Build directory cleaned: build
+
+================================================================================
+ 鉁?V2 BUILD COMPLETED SUCCESSFULLY!
+================================================================================
+馃搳 Build Summary:
+   Launcher: 268.12s
+   Main App: 345.38s
+   Installer: 176.08s
+   Total: 812.64s (13.5 minutes)
+   Output: dist\MinecraftFRP_0.5.32_installer
+================================================================================

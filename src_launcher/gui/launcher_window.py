@@ -9,9 +9,19 @@ from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QLabel,
                                QPushButton, QProgressBar, QMessageBox)
 from PySide6.QtCore import Qt, QTimer, QThread
 from PySide6.QtGui import QFont
-from src_launcher.core.update_checker import UpdateChecker
-from src_launcher.core.downloader import Downloader
-from src._version import __version__
+
+# 兼容打包和开发环境的导入
+try:
+    from core.update_checker import UpdateChecker
+    from core.downloader import Downloader
+except ImportError:
+    from src_launcher.core.update_checker import UpdateChecker
+    from src_launcher.core.downloader import Downloader
+
+try:
+    from src._version import __version__
+except ImportError:
+    __version__ = "0.5.32"
 
 logger = logging.getLogger("Launcher")
 

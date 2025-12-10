@@ -8,8 +8,14 @@ import zipfile
 import logging
 from pathlib import Path
 from typing import Optional, Tuple
-from src_installer.core.config_manager import ConfigManager
-from src_installer.core.file_operations import FileOperations
+
+# 兼容打包和开发环境的导入
+try:
+    from core.config_manager import ConfigManager
+    from core.file_operations import FileOperations
+except ImportError:
+    from src_installer.core.config_manager import ConfigManager
+    from src_installer.core.file_operations import FileOperations
 
 logger = logging.getLogger(__name__)
 

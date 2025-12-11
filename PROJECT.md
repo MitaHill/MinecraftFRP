@@ -11,7 +11,17 @@
 你的每一次代码生成都将直接影响项目的整体质量和可维护性，请务必认真对待每一个细节，严格按照文档要求进行编码。
 感谢你的理解与配合！
 以及请使用**简体中文**语言和用户进行对话沟通，以确保信息传达的准确性和一致性。
+
+### 重要规范：
+
 *   **交互式脚本**: AI助手不应尝试执行需要用户输入的交互式脚本（如 `build.py`）。应当等待用户手动执行，并根据用户提供的结果或反馈来继续下一步工作。
+
+*   **🚫 禁止使用 BAT/CMD/PowerShell 脚本**: 
+    - **所有自动化脚本必须使用 Python 编写**
+    - 禁止创建 `.bat` / `.cmd` / `.ps1` 文件
+    - 原因：跨平台兼容性差、编码问题频发（PowerShell 中文乱码）、难以维护
+    - 例外：仅允许使用 Python 的 `subprocess` 模块调用系统命令
+    - 正确做法：将所有脚本逻辑封装为 Python 函数或模块
 
 ## 2. 技术栈
 - **编程语言**: Python 3.8+
@@ -19,11 +29,277 @@
 - **核心功能**: FRP (通过 subprocess 调用 frpc 可执行文件)
 - **依赖管理**: pip (requirements.txt)
 - **打包工具**: Nuitka
+- **安装程序**: PySide6 (轻量化安装器)
 - **版本控制**: Git
+
+## 2.5 架构版本说明
+
+### 安装器架构 (当前) - Inno Setup 专业安装器
+
+项目采用 **Inno Setup** 专业安装程序，提供标准Windows安装体验；统一为“目录模式”发布（非单文件），所有组件以“exe + 子目录”形态交付。
+
+---
+
+#### 核心改进：
+1. **Inno Setup 安装器**：使用业界标准的 Inno Setup 6，提供完整的 Windows 安装向导
+2. **目录化部署**：采用标准软件目录结构（Program Files）
+3. **启动器 (Launcher)**：用户入口改为 `launcher.exe`，负责更新检测和启动主程序
+4. **配置文件分离**：用户数据存储在 `文档/MitaHillFRP/` 目录，支持跨版本保留配置
+5. **覆盖更新机制**：类似微信/Chrome的升级体验，直接覆盖安装，无需卸载
+6. **自动卸载程序**：完整的卸载功能，可选保留配置文件
+
+---
+
+#### 重要：AppId 锁定
+
+**永远不要修改这个 GUID！**
+
+```
+AppId: {8B5F6C3D-9E4A-4F2B-A1D3-7C8E9F0B1A2C}
+```
+
+**为什么重要？**
+- Inno Setup 通过 AppId 识别是否为同一个软件
+- 如果修改了 AppId，新版本会被识别为不同的软件
+- 用户会同时看到两个"MinecraftFRP"程序
+- 会导致注册表混乱和卸载问题
+
+**正确做法**：无论版本如何变化（0.5.32 → 0.6.0 → 1.0.0），**AppId 始终保持不变**。
+
+---
+
+#### 构建与发布目录结构：
+
+**构建过程：**
+```
+项目根目录/
+├── build/                         # 【构建缓存目录】所有中间产物和最终成品
+│   ├── temp_launcher/             # Launcher 编译缓存
+│   │   └── launcher.exe
+│   ├── temp_main_app/             # 主程序编译缓存
+│   │   └── app.dist/
+│   │       ├── MinecraftFRP.exe
+│   │       └── ... (478个文件)
+│   ├── MinecraftFRP_build/        # 组织好的构建产物（给 Inno Setup 用）
+│   │   ├── launcher.exe
+│   │   └── app.dist/
+│   └── installer_output/          # Inno Setup 输出目录
+│       └── MinecraftFRP_Setup_0.5.32.exe  # 【最终成品】
+│
+├── dist/                          # 【发布目录】按版本号存档
+│   └── 0.5.32/                    # 从 build/ 复制过来的成品
+│       ├── MinecraftFRP_Setup_0.5.32.exe
+│       ├── version.json           # 版本元数据
+│       └── CHANGELOG.md           # 版本更新日志
+│
+└── setup.iss                      # Inno Setup 配置脚本
+```
+
+**关键规则：**
+1. `build/` - 临时构建缓存，可随时删除重建
+2. `dist/版本号/` - 发布归档，每个版本独立存储
+3. 构建完成后，从 `build/installer_output/` 复制成品到 `dist/版本号/`
+4. 防病毒软件干扰 build/ 不影响已发布的 dist/
+
+---
+
+#### v2.0 目录结构：
+
+**安装目录** (默认: `C:\Program Files\MinecraftFRP\`)
+```
+MinecraftFRP/
+├── launcher.exe               # 【用户入口】启动器（检查更新 + 启动主程序）
+├── app.dist/                  # 主程序目录
+│   ├── MinecraftFRP.exe       # 主程序
+│   └── ... (478个依赖文件)
+├── base/                      # 依赖资源目录
+│   ├── frpc.exe               # FRP 客户端 (旧版)
+│   ├── new-frpc.exe           # FRP 客户端 (新版 TOML)
+│   ├── tracert.exe            # 网络诊断工具
+│   └── logo.ico               # 程序图标
+├── config/                    # 本地配置缓存 (非用户数据)
+│   ├── frp-server-list.json   # 服务器列表缓存
+│   └── ads/                   # 广告图片缓存
+├── logs/                      # 运行日志
+│   ├── app.log
+│   └── launcher.log
+└── unins000.exe              # Inno Setup 自动生成的卸载程序
+```
+
+**用户配置目录** (`C:\Users\<用户名>\Documents\MitaHillFRP\`)
+```
+MitaHillFRP/
+└── app_config.yaml            # 用户个人配置（端口、主题等）
+```
+
+---
+
+#### v2.0 安装流程：
+
+**首次安装：**
+1. 用户运行 `MinecraftFRP_Setup_0.5.32.exe`
+2. 安装器显示欢迎页 → 许可协议 → 选择安装路径
+3. 选择创建快捷方式（桌面/开始菜单）
+4. 安装器解压所有文件到目标目录
+5. 在注册表中注册应用程序信息（控制面板可见）
+6. 安装完成，可选立即启动程序
+
+**升级安装（覆盖安装）：**
+1. 用户下载新版安装包 `MinecraftFRP_Setup_0.5.33.exe`
+2. 双击运行安装包
+3. Inno Setup 自动检测：
+   - 通过 AppId 发现旧版本已安装
+   - 自动切换为"升级模式"
+   - 如程序正在运行，提示用户关闭（自动检测）
+4. 覆盖安装：
+   - 替换所有程序文件
+   - 保留用户配置（`文档/MitaHillFRP/`）
+   - 更新注册表版本号
+5. 如程序之前在运行，安装完成后自动重启
+
+**卸载流程：**
+1. 方式1：设置 → 应用 → MinecraftFRP → 卸载
+2. 方式2：开始菜单 → MinecraftFRP → 卸载 MinecraftFRP
+3. 卸载程序删除整个安装目录
+4. 询问用户是否保留配置文件（`文档/MitaHillFRP/`）
+5. 删除桌面和开始菜单快捷方式
+6. 清理注册表
+
+---
+
+#### v2.0 更新机制：
+
+**完整流程：**
+```
+用户双击桌面快捷方式
+    ↓
+launcher.exe 启动
+    ↓
+读取本地版本 (从 app.exe 元数据或配置文件)
+    ↓
+异步请求 https://z.clash.ink/chfs/shared/MinecraftFRP/Data/version.json
+    ↓
+┌─────────────────────────────────────┐
+│ 版本对比                            │
+├─────────────────────────────────────┤
+│ 【最新】→ 直接启动 app.exe          │
+│ 【过旧】→ 提示用户下载新版安装包     │
+└─────────────────────────────────────┘
+```
+
+**两种更新方式：**
+
+**方案一：覆盖更新（已实现）**
+- 用户手动下载新版安装包
+- 双击运行，Inno Setup 自动检测旧版本
+- 自动提示关闭程序、覆盖安装、保留配置
+- 类似微信/Chrome的升级体验
+
+**方案二：自动在线更新（未来增强，架构已设计）**
+- Launcher 检测到新版本
+- 后台下载安装包并校验 SHA256
+- 唤起安装包进行静默安装
+- 详细实现见 `docs/UPDATE_STRATEGY.md`
+
+**关键特性：**
+- **配置保留**：用户配置存储在独立的 `文档/MitaHillFRP/` 目录，永不被覆盖
+- **自动卸载程序**：Inno Setup 自动生成，注册到控制面板
+- **注册表集成**：应用信息、版本号、卸载路径自动写入注册表
+- **静默更新选项**：未来可支持 `/VERYSILENT` 参数实现静默升级
+
+---
+
+#### 分发与部署：
+
+**最终产物：**
+```
+dist/
+└── MinecraftFRP_<版本号>/
+    ├── MinecraftFRP_Setup_<版本号>.exe      # Stable 通道
+    ├── MinecraftFRP_installer_dev.exe       # Dev 通道
+    └── version.json
+```
+
+**服务器部署：**
+- `MinecraftFRP_Setup_0.5.32.exe` → 上传到 `/root/chfs/share/MinecraftFRP/downloads/`
+- `version.json` → 上传到 `/root/chfs/share/MinecraftFRP/Data/version.json`
+
+**用户获取方式：**
+- **首次安装**：从官网/分发渠道下载 `MinecraftFRP_Setup_x.x.x.exe`
+- **后续更新**：手动下载新版安装包并运行（或等待方案二实现后自动更新）
+
+---
+
+#### 构建命令：
+
+统一入口（仅此一种）：
+```bash
+python build.py [--channel dev|stable] [--upload] [-u "更新说明"] [--clean]
+```
+
+该命令将：
+1. 清空 build/ 缓存（保留 dist/ 仅做最终归档）
+2. 编译 Launcher（Nuitka 目录模式，输出 launcher.dist/）
+3. 编译主程序（Nuitka 目录模式，输出 app.dist/）
+4. 组织文件到 build/MinecraftFRP_build/
+5. 使用 Inno Setup 打包到 build/installer_output/
+6. 将安装器复制到 dist/MinecraftFRP_<版本号>/ 并生成 version.json（按通道命名：dev 为 MinecraftFRP_installer_dev.exe）
+
+```
+build/                              # 构建缓存（可删除）
+├── temp_launcher/
+│   └── launcher.exe
+├── temp_main_app/
+│   └── app.dist/
+├── MinecraftFRP_build/             # 组织好给 Inno Setup 用
+│   ├── launcher.exe
+│   └── app.dist/
+└── installer_output/
+    └── MinecraftFRP_Setup_0.5.32.exe   # 安装程序
+
+dist/                               # 发布目录（永久保存）
+└── 0.5.32/
+    └── MinecraftFRP_Setup_0.5.32.exe   # 最终成品
+```
+
+**依赖要求：**
+- Inno Setup 6.6.1 (安装路径: `C:\Program Files (x86)\Inno Setup 6\`)
+- Python 3.8+
+- Nuitka 2.8.9
+- PySide6
+
+**常见问题：**
+1. **Inno Setup 报错"文件被占用"**：关闭所有资源管理器窗口，确保没有程序占用 build/ 目录
+2. **缺少语言文件**：已使用英语，中文需手动下载 `ChineseSimplified.isl`
+3. **防病毒软件干扰**：将项目目录添加到信任区
+
+---
+
+#### v2.0 技术栈：
+
+- **安装器**: Inno Setup 6.6.1
+- **编译器**: Nuitka 2.8.9
+- **GUI框架**: PySide6
+- **构建脚本**: Python (src_builder/)
+- **部署**: SSH/SFTP (paramiko)
 
 ## 3. Git 工作流与规范 (严格执行)
 
 本项目采用严格的 Git 提交与分支管理规范，以确保代码库的整洁与可维护性。
+
+### 3.0 版本标记与构建前置命令（信息采集，仅参考）
+为确保 `version.json` 与安装器版本信息一致，构建前可以选择执行以下命令采集 Git 信息（不强制）：
+
+```powershell
+# 可选：查看当前分支与最近标签
+git rev-parse --abbrev-ref HEAD
+git tag --list
+```
+
+注意：
+- 构建脚本已取消所有 Git 写操作（不自动创建/推送标签），仅获取分支信息用于默认更新说明。
+- 构建缓存目录为 `build/`，发布目录为 `dist/MinecraftFRP_<版本号>/`，二者严格分离。
+- 构建成功后，安装器与 `version.json` 会复制到 `dist/MinecraftFRP_<版本号>/`，其中 Dev 通道安装器命名为 `MinecraftFRP_installer_dev.exe`。
 
 ### 3.1 分支管理策略
 *   **主分支 (`main`)**: 仅存放经过测试、稳定可运行的代码。
@@ -184,10 +460,9 @@ MinecraftFRP/
 ## 10. 打包与发布规范 (Packaging)
 
 ### 10.1 Nuitka 打包标准
-*   **编译目标**: Nuitka 将 Python 源码编译为C语言级别，以追求更高的性能和反逆向能力。
-*   **单文件发布**: 默认使用 `--onefile` 模式。
+*   **编译目标**: Nuitka 编译为“目录模式”（standalone，非 onefile），以便 `exe + 子目录` 的架构。
 *   **隐藏控制台**: GUI 程序必须使用 `--windows-disable-console` (或 `--disable-console`) 隐藏 CMD 窗口。
-*   **资源内置**: 所有外部依赖（如 `frpc.exe`, 图标文件等）必须通过 `--include-data-file` 或 `--include-data-dir` 等参数内置到 EXE 中。
+*   **资源内置/目录随附**: 外部依赖通过 `--include-data-file` / `--include-data-dir` 或随 `app.dist/`、`nuitka_launcher/` 目录分发。
 
 ### 10.2 路径解析
 *   **动态路径**: 代码中禁止使用硬编码的相对路径加载资源。
@@ -231,6 +506,10 @@ MinecraftFRP/
 
 | 日期 (Date) | 类型 (Type) | 描述 (Description) | Git Hash (Short) / Branch |
 | :--- | :--- | :--- | :--- |
+| 2025-12-10 | `feat` | 迁移到 Inno Setup 专业安装器，彻底重构 v2 架构 | `v2-installer-architecture` |
+| 2025-12-10 | `feat` | 添加覆盖更新支持（类似微信/Chrome升级体验） | `a02b905` |
+| 2025-12-10 | `feat` | 简化构建命令，--v2 默认启用 fast 模式 | `e1bc046` |
+| 2025-12-10 | `fix` | 修复 Inno Setup 的 DirExistsWarning 参数错误 | 进行中 |
 | 2025-12-08 | `fix` | 修复 `Styles` 模块的 `ModuleNotFoundError` | `09174aa` |
 | 2025-12-08 | `fix` | 修复服务器管理窗口和文件下载功能 | `ed245b2` |
 | 2025-12-07 | `feat` | 实现启动广告弹窗，并重构统一广告系统 | `feat/startup-ad-dialog` |
@@ -255,29 +534,73 @@ MinecraftFRP/
 本项目拥有一套基于 Python 的自动化构建与部署流水线，其核心是根目录下的 `build.py` 脚本。
 
 ### 12.1 核心组件
-*   **`build.py`**: 自动化主脚本，负责驱动整个流程。
+*   **`build.py`**: 自动化主脚本，负责驱动整个流程（仅 Python，禁止 BAT/CMD/PS1）。
 *   **`cicd.yaml`**: 流水线配置文件，用于定义版本号、部署目标服务器信息、打包参数等。
 
 ### 12.2 自动化流程
 运行 `python build.py` 后，脚本将自动执行以下端到端(End-to-End)任务：
-1.  **读取配置**: 解析 `cicd.yaml` 获取当前版本号和部署配置。
-2.  **Nuitka 编译**: 调用 Nuitka 将 `app.py` 打包为高性能的单文件可执行程序。
-3.  **版本化命名**: 根据当前版本号，将编译产物重命名（例如 `MinecraftFRP_0.5.0.exe`）。
-4.  **生成清单**:
-    *   自动计算可执行文件的 **SHA256** 哈希值，用于客户端安全校验。
-    *   自动获取当前的 **Git Commit Hash**。
-    *   将版本号、Git Hash、SHA256等信息组装成 `version.json` 文件。
-5.  **安全部署 (可选)**:
-    *   脚本会交互式地询问是否部署。
-    *   如果确认，会**安全地提示输入SSH密码**（密码仅在内存中，不保存）。
-    *   通过 SFTP 将编译好的 `.exe` 文件和 `version.json` 文件上传到`cicd.yaml`中指定的服务器路径。
-6.  **版本递增**: 部署成功或选择不部署后，脚本会自动将 `cicd.yaml` 中的补丁版本号加一，为下一次构建做准备。
+1.  **读取配置**: 解析 `cicd.yaml` 获取当前版本号和部署配置；每次构建版本号自增一次并写回。
+2.  **Nuitka 编译**: 以目录模式编译 `launcher.py` 与 `app.py`（非单文件），输出 `launcher.dist/` 与 `app.dist/`。
+3.  **组织产物**: 汇总到 `build/MinecraftFRP_build/`（launcher.exe + nuitka_launcher/ + app.dist/）。
+4.  **生成安装器**: 使用 Inno Setup 将上述目录打包输出到 `build/installer_output/`。
+5.  **生成清单**:
+    *   自动计算安装器的 **SHA256**。
+    *   获取当前 **Git 分支**（仅用于信息显示，不做写操作）。
+    *   将版本号、SHA256、分支信息与更新说明写入 `version.json` 文件。
+6.  **部署 (可选)**:
+    *   通过 SFTP 将安装器与 `version.json` 上传到服务器指定目录（按通道隔离：Stable/ 与 Dev/）。
+7.  **缓存清理**: 结束后清空 `build/` 目录，保留 `dist/` 归档。
 
 ### 12.3 如何使用
 确保已安装所有 `requirements.txt` 中的依赖后，在项目根目录的虚拟环境中执行：
 ```shell
-python build.py
+python build.py --channel dev            # 默认：开发通道
+python build.py --channel stable --upload -u "修复BUG"   # 正式发布并上传
 ```
+
+#### 构建说明（安装器模式）
+已取消 `--v2` 参数，统一使用 `build.py`，通过 `--channel` 指定通道。
+
+**构建阶段：**
+1. **Launcher 编译** (4-5分钟) - 使用 Nuitka onefile 模式
+2. **主应用编译** (4-5分钟) - 使用 Nuitka standalone 模式，生成 app.dist/
+3. **文件组织** (几秒) - 复制到 build/MinecraftFRP_build/
+4. **Inno Setup 打包** (30秒) - 生成最终的 Setup.exe（输出到 build/installer_output/，随后复制到 dist/版本号/）
+
+**总耗时**: 约 10-12 分钟
+
+**构建产物**:
+```
+dist/
+├── MinecraftFRP_0.5.32_installer/
+│   └── MinecraftFRP_Setup_0.5.32.exe    # 最终安装器（~180-200MB）
+├── MinecraftFRP_build/                  # 中间产物（Inno Setup 源）
+│   ├── launcher.exe
+│   └── app.dist/ (478个文件)
+└── minecraft_version_index/
+    └── version.json
+```
+
+**远程构建**:
+```shell
+# 在远程服务器构建
+.\build_remote.ps1 -Remote -Fast
+
+# SSH 直接构建
+ssh vgpu-server-user@192.168.9.158 "cd /d D:\MinecraftFRP && .venv\Scripts\python.exe build.py --v2"
+```
+
+**参考文档**:
+- `docs/v2_build_guide.md` - 完整构建指南
+- `docs/UPDATE_STRATEGY.md` - 更新策略详解
+- `docs/INNO_SETUP_DEPENDENCIES.md` - Inno Setup 依赖安装
+
+### 12.4 远程构建指令
+如需在远程服务器上执行构建，可使用以下 SSH 命令：
+```shell
+ssh vgpu-server-user@192.168.9.158 "cd /d D:\MinecraftFRP && venv\Scripts\python.exe build.py --v2"
+```
+此命令将在远程 Windows 服务器上执行 v2.0 架构的完整构建流程。
 
 ## 13. 附录：技术细节与修复记录
 
@@ -571,3 +894,214 @@ python build.py --skip-updater
 - **Web 服务检测**: 实时监控映射端口，发现 HTTP 服务立即终止
 - **配置文件安全**: 使用临时文件+延迟删除，防止配置泄露
 - **文件锁定**: 配置文件在使用期间锁定，防止外部读取
+
+## 23. 联机厅（Online Lobby）系统设计与实施计划
+
+### 23.1 目标与范围
+- 为玩家提供一个“可发现、可加入、可筛选”的公共房间大厅，支持公开/私有两种模式。
+- 保障大厅数据的实时性（心跳<=30s）、稳定性（断线自愈）、安全性（防滥用、防伪造）。
+- 与现有客户端能力无缝衔接：沿用 HeartbeatManager、FRPC 管理、广告与更新体系，不破坏当前流程。
+
+### 23.2 客户端现状与可复用模块
+- HeartbeatManager（heartbeat_manager.py）：已具备房间发布、DELETE 删除、30s 心跳与退出清理能力。
+- MainWindow（src/gui/MainWindow.py）：已在映射启动/终止时对心跳做集成调用；具备统一日志、线程管理与版本信息输出。
+- 特殊节点：以 A、B、C... 命名，界面样式与普通节点一致，始终排在列表底部。
+
+### 23.3 数据模型（客户端 -> 服务器）
+- Room 对象（POST/DELETE/Heartbeat）：
+  {
+    "remote_port": int,           # 服务器分配的远端端口
+    "node_id": int,               # 节点ID（A=1，B=2...以服务端映射为准）
+    "room_name": str,             # 房间显示名
+    "game_version": str,          # 游戏版本（可未知）
+    "player_count": int,          # 当前人数
+    "max_players": int,           # 最大人数
+    "description": str,           # 备注
+    "is_public": bool,            # 是否公开
+    "host_player": str,           # 主机玩家ID（已做合规校验）
+    "server_addr": str,           # 节点出口地址（非玩家真实IP）
+    "full_room_code": str         # 由客户端内部生成的幂等键："{remote_port}_{node_id}"
+  }
+- 约束：full_room_code 作为幂等键；重复 POST 视作 upsert；DELETE 需提供同样键。
+
+### 23.4 客户端工作流（状态机）
+1) StartMapping -> Submit(POST) -> Heartbeat(30s) -> StopMapping(DELETE) -> Idle
+2) 进程守护：若 FRPC 退出/异常，自动停止心跳并触发 DELETE；重连时自动重新发布+续心跳。
+3) UI：发布成功/失败、心跳成功/失败均通过统一 Logger 记录；速率限制避免刷屏。
+
+### 23.5 服务端接口（建议）
+- REST
+  - POST   /api/lobby/rooms                 # upsert 创建/续签（携带 full_room_code）
+  - DELETE /api/lobby/rooms                 # 删除（按 full_room_code）
+  - GET    /api/lobby/rooms                 # 查询（分页/筛选：version、loader、node、keyword、is_public、tags[]）
+  - GET    /api/lobby/nodes                 # 节点元数据（展示名称、地区、负载、是否特殊节点）
+  - POST   /api/auth/login                  # 账号登录（保留接口），入参：username/password；出参：access_token/refresh_token
+  - POST   /api/auth/refresh                # 刷新令牌（保留接口）
+  - GET    /api/users/me                    # 获取当前账号信息（保留接口）
+  - GET    /api/moderation/wordlist        # 敏感词词表增量/版本（客户端本地缓存，保留接口）
+  - POST   /api/moderation/report          # 举报接口（房间/用户/文本），用于反馈与二次审核
+- WebSocket（可选增强）
+  - /api/lobby/stream                       # 房间增删改推送，客户端用于实时刷新列表
+- 鉴权与防伪造（最小闭环方案）
+  - Header：x-app=MCFRP，x-ts=unix_ms，x-sign=HMAC_SHA256(body+ts, shared_key)
+  - Authorization: Bearer <access_token>（当账号体系启用时）
+  - shared_key 按版本轮换；客户端内做混淆拼接；服务端允许±60s 时间偏差。
+  - 频控：同一IP 1min 内创建≤N、心跳≤120/小时；可灰度动态调整。
+- 校验与拦截
+  - 文本字段统一按长度、字符集与敏感词规则进行校验；违规请求直接 400/422。
+  - 支持可配置的正则黑白名单（前缀/后缀/关键词/Emoji 过滤），并在响应中回传 normalized 文本。
+
+### 23.6 心跳与清理策略
+- 心跳周期：30s；服务端容忍窗口：90s 未收到则标记下线、120s 清理。
+- 幂等：相同 full_room_code 在有效期内 POST 直接覆盖并续期。
+- 回收：DELETE 请求即刻下架；客户端异常退出由服务端超时清理兜底。
+
+### 23.7 安全与反滥用
+- 本地 WebGuard：映射前/映射中检测映射端口是否提供 HTTP/HTTPS，命中则阻断映射并提示。
+- 信息最小化：大厅仅展示 relay 地址与房间信息，不暴露玩家真实 IP/端口。
+- 反爬与滥用：分页+签名校验+IP 频控+可选验证码（仅创建接口），服务端侧记录异常指纹并黑名单。
+- 配置防盗：FRPC TOML 采用“写入->启动->延迟删除”的短生命周期策略；尽量短时落盘并加文件锁。
+
+### 23.8 匹配与发现（体验层）
+- 筛选/排序：按延迟（近似）、版本、节点、人数、关键字；默认推荐低负载、低延迟房间。
+- 标签化：房间可选标签（生存/建筑/PVP/模组名），便于发现；服务端侧做简单词频统计。
+- 多端一致：PC UI 与（未来）Web 列表协议一致，便于复用。
+
+### 23.9 断线自愈与容错
+- 客户端对网络错误做指数退避（1s/2s/4s..上限15s），但不阻塞 UI。
+- 进程级事件：FRPC 退出->立即停止心跳+发起 DELETE；重连成功后自动恢复心跳。
+- 日志：失败原因与上下文完整记录，且 50s 内重复报文仅记录一次。
+
+### 23.10 与现有规范的兼容
+- 特殊节点维持 A/B/C... 命名，展示与普通节点一致，排序固定在列表末尾（不硬编码地址）。
+- 完全遵循模块化：新增客户端逻辑放入 src/network/LobbyClient.py、src/core/LobbyService.py（或等价拆分）。
+- GUI 改动最小化：映射 Tab 新增“发布到联机厅”开关与房间信息表单（默认读取缓存）。
+
+### 23.11 实施里程碑（客户端）
+- M1（D+2）: 抽象 LobbyClient，改造 HeartbeatManager 以支持签名与幂等键；最小闭环联调。
+- M2（D+5）: GUI 表单、房间列表页（仅本地渲染）、错误与速率限制完善；日志与埋点。
+- M3（D+8）: WebSocket 增强（可选）、搜索筛选、排序策略；异常自愈与A/B测试开关。
+- M4（D+10）: 文档与自动化测试补充、性能与稳定性压测、灰度发布。
+
+### 23.12 服务端参考实现（建议）
+- 技术栈任选（Go/FastAPI/Node），持久层 MySQL/SQLite + Redis（心跳TTL）；Nginx 限流与缓存。
+- 数据表：rooms(full_room_code PK, meta..., updated_at idx)、nodes(id PK, meta...)；rooms 按 updated_at 建索引。
+- 清理任务：每60s 扫描 rooms，过期清理；指标上报。
+
+### 23.13 监控与可观测性
+- 指标：活跃房间数、创建/删除QPS、心跳成功率、超时清理数、平均心跳延迟、敏感词命中率、拦截率。
+- 日志：按 request-id 关联；异常类型聚合；可选接入 Sentry/Prometheus/Grafana。
+- 应急：灰度开关、签名轮换、黑名单实时下发与回滚预案；敏感词/正则规则热更新。
+
+### 23.14 内容审核与敏感词（客户端+服务端）
+- 客户端：本地缓存词表与正则规则（版本化），在提交前本地预检并高亮违规字段；不修改原输入，仅提示。
+- 服务端：最终裁决；返回 422 并附带字段级错误原因与命中条目；支持按地区/语言下发差异化词表。
+- 词表更新：GET /api/moderation/wordlist 返回 {version, rules[]}；客户端按版本号增量更新并落盘。
+
+### 23.15 账号体系与权限（保留接口）
+- 形态：阶段一匿名（签名+频控），阶段二账号（用户名/密码），阶段三三方登录（可选）。
+- Token：JWT 或等价，短期 access + 长期 refresh；客户端仅在 Header 发送，不落入房间业务体。
+- 权限：普通玩家/认证房主/官方节点管理员；不同角色的发布额度、可见性、审核流程不同。
+
+### 23.16 API 版本化与兼容
+- Header: X-Api-Version: 1；Body 中携带 api_version: "v1"；当 v2 演进时保持向后兼容并保留旧字段。
+- 字段演进：新增字段默认可空；删除字段先标记 deprecated≥2个小版本周期后再移除。
+
+### 23.17 前瞻功能路线（保留接口）
+- 房间口令与邀请：支持一次性邀请链接/二维码；私密房间不在公共列表展示，仅持有链接可见。
+- 匹配推荐：结合节点负载、近似延迟、玩家偏好与历史加入记录，提供个性化排序（端上可关闭）。
+- 兼容性匹配：基于 loader/modpack_hash 的兼容建议与冲突提示。
+- 社交：收藏/最近加入/屏蔽；房主公告与轮播；跨房间消息通道（仅服务端可见的系统广播）。
+- 反滥用扩展：设备指纹与风险评分（隐私合规前提下），灰度拦截与人工复核通道。
+
+### 23.18 小型自建形态（当前阶段最简实现）
+- 更新于：2025-12-09T19:05:03.964Z（自建版规划，保持大胆设想但实现最小闭环）
+- 服务端形态：单进程 FastAPI + SQLite（rooms.db，单表 rooms，按 updated_at 建索引），无账号体系；仅暴露三条接口：
+  - POST /api/lobby/rooms（upsert，携带 full_room_code）
+  - DELETE /api/lobby/rooms（按 full_room_code 下架）
+  - GET /api/lobby/rooms（分页+简单筛选：keyword、node、loader、is_public、version）
+- 预留接口但暂不启用：/api/auth/login、/api/auth/refresh、/api/users/me、/api/moderation/wordlist（返回固定占位数据或 404）。
+- 客户端上报字段扩展（立即生效，均可选）：
+  - loader: "Vanilla" | "Forge" | "NeoForge" | "Fabric" | "Quilt"
+  - modpack_name: str, modpack_version: str
+  - tags: list[str]（如 ["生存","建筑","PVP"]）
+  - region: str（展示区域/线路，如 CN-North）
+  - allow_listed: bool（房主声明是否启用白名单，仅用作展示）
+  - ext: dict（保留扩展字段，客户端与服务端均应原样透传）
+- 防滥用（轻量化）：
+  - 签名可选：Header x-ts + x-sign = HMAC_SHA256(body+ts, shared_key)，shared_key 存服务端配置，客户端做混淆；时间偏移±60s。
+  - 频控：同一 IP 1分钟内 POST ≤ 3；心跳频次 ≤ 120/小时；超出返回 429。
+  - 敏感词：客户端本地正则预检（可空），服务端使用最简 regex 列表（支持通配词根），命中则 422 返回具体字段与命中词。
+- 心跳策略：仍为 30s；服务端 90s 标记下线、120s 清理；客户端异常退出由服务端超时兜底。
+- 部署与运维（极简）：
+  - 启动：python server.py 或 uvicorn server:app --host 0.0.0.0 --port 9000
+  - 数据：SQLite 单文件，提供每日自动备份（可选 cron）；无需外部缓存。
+  - CORS：仅允许客户端 User-Agent/Origin 白名单（简化为 * 也可，但不推荐）。
+- 渐进式演进轨道：
+  - P1（当前）三接口+SQLite+HMAC（可关）；
+  - P2（可选）加入 WebSocket 推送与更细筛选；
+  - P3（保留）启用账号、令牌与更完整审核链路。
+
+### 23.19 反向代理与源IP识别（Nginx/SSL 终止/控制协议）
+- 目标：在启用 SSL 反向代理（如 Nginx、Caddy）时，服务端能够准确识别客户端真实源 IP，并支持反代控制协议。
+- 支持能力：
+  - Header 信任链：X-Forwarded-For（首个未信任代理IP）、X-Real-IP、X-Forwarded-Proto、X-Forwarded-Host。
+  - PROXY protocol v1/v2（可选）：在内网直连或四层反代下启用，以获取源地址信息。
+  - 受信代理白名单：仅当请求来源于 127.0.0.1/内网网段/配置的反代IP 时才信任上述头部，避免伪造。
+- 记录策略：
+  - request_ip_raw：TCP 层对端地址（反代地址）。
+  - request_ip_effective：解析自可信头部/PROXY 协议的真实客户端IP。
+  - tls_offload: true/false 标记请求是否经由 TLS 终止（X-Forwarded-Proto==https 视为 true）。
+- 接口兼容：所有 REST/WebSocket 接口均应填充 request_ip_effective，用于频控、审计与展示（UI 可脱敏显示）。
+- 参考 Nginx 配置（示例）：
+  ```nginx
+  server {
+      listen 443 ssl http2;
+      server_name example.com;
+      ssl_certificate     /etc/ssl/fullchain.pem;
+      ssl_certificate_key /etc/ssl/privkey.pem;
+
+      location /api/ {
+          proxy_pass http://127.0.0.1:9000;
+          proxy_set_header Host $host;
+          proxy_set_header X-Real-IP $remote_addr;
+          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+          proxy_set_header X-Forwarded-Proto $scheme;
+          proxy_http_version 1.1;
+          proxy_set_header Connection "";
+      }
+  }
+  ```
+- FastAPI 获取源 IP（示例伪码）：
+  ```python
+  def get_effective_ip(request):
+      peer = request.client.host
+      if peer in TRUSTED_PROXIES:
+          xff = request.headers.get("X-Forwarded-For", "")
+          xri = request.headers.get("X-Real-IP")
+          ip = (xff.split(",")[0].strip() if xff else xri) or peer
+      else:
+          ip = peer
+      return ip
+  ```
+- 审计与风控：日志中同时记录 raw/effective IP；频控以 effective IP 为主、raw IP 为辅；
+- 时间戳：更新于 2025-12-09T19:06:16.291Z（预留反代控制协议与 SSL 终止场景支持）。
+
+版本文件 https://z.clash.ink/chfs/shared/MinecraftFRP/Data/version.json
+上传 /root/chfs/share/MinecraftFRP/Data/version.json
+
+下载通道
+
+DEV版本
+https://z.clash.ink/chfs/shared/MinecraftFRP/Dev/MitaHill_Dev_FRP.exe
+
+上传 /root/chfs/share/MinecraftFRP/Dev/MitaHill_Dev_FRP.exe
+
+STABLE版本
+https://z.clash.ink/chfs/shared/MinecraftFRP/Stable/MitaHill_Stable_FRP.exe
+
+上传 /root/chfs/share/Minecraft/Stable/MitaHill_Stable_FRP.exe
+
+版本文件只有一个，因为我不想两个版本分支相同维护。
+
+更新程序从服务器拉取更新索引文件 version.json ，和自身的版本通道进行比对，如果匹配，那么看版本号，如果服务器的版本号大于自身，则触发更新，从指定位置下载安装包，并安装

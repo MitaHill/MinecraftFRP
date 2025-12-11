@@ -19,7 +19,8 @@ def ping_host(host):
             text=True
         )
         output, _ = p.communicate()
-        match = re.search(r"时间=(\d+)ms", output)
+        # 兼容中文 "时间=xxms" 和英文 "time=xxms" / "Time=xxms"
+        match = re.search(r"(?:时间|time|Time)[=<](\d+)ms", output, re.IGNORECASE)
         return int(match.group(1)) if match else None
     except Exception as e:
         logger.error(f"Ping 出错: {e}")

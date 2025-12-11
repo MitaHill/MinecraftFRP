@@ -49,14 +49,13 @@ class LogManager:
         logger.addHandler(console_handler)
 
         # 2. 文件 Handler (ClosingFileHandler)
-        # 确保 logs 目录存在
-        log_dir = "logs"
-        if not os.path.exists(log_dir):
-            try:
-                os.makedirs(log_dir)
-            except Exception:
-                # 如果无法在当前目录创建 (如无权限)，尝试使用临时目录或忽略文件日志
-                pass
+        # 日志目录迁移到用户文档
+        docs_path = os.path.join(os.path.expanduser('~'), 'Documents', 'MitaHillFRP')
+        log_dir = os.path.join(docs_path, 'logs')
+        try:
+            os.makedirs(log_dir, exist_ok=True)
+        except Exception:
+            pass
 
         log_file_path = os.path.join(log_dir, "app.log")
         

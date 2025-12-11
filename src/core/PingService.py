@@ -1,7 +1,7 @@
 import time, threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict, Tuple, Generator, Optional
-from src.network.PingUtils import ping_host
+from src.network.PingUtils import ping_host, test_tcp_port
 from src.utils.LogManager import get_logger
 
 logger = get_logger()
@@ -48,7 +48,7 @@ class PingService:
             # 提交所有任务
             # future_to_name: {Future: server_name}
             future_to_name = {
-                executor.submit(self._ping_single, name, info[0]): name 
+                executor.submit(self._ping_single, name, info[0], info[1]): name 
                 for name, info in servers.items()
             }
 
@@ -62,7 +62,16 @@ class PingService:
                     logger.error(f"Ping 服务器 {name} 时发生未捕获异常: {e}")
                     yield name, None
 
-    def _ping_single(self, name: str, host: str) -> Optional[int]:
-        """单个 Ping 任务包装器"""
-        # 这里可以添加重试逻辑等
-        return ping_host(host)
+    def _ping_single(self, name: str, host: str, port: int) -> Optional[int]:
+        """单个 Ping 任务包装器：优先 ICMP Ping，失败则回退到 TCP Ping"""
+        delay = ping_host(host)
+        if delay is not None:
+            return delay
+        
+        # ICMP Ping 失败，尝试 TCP Ping
+        # logger.debug(f"ICMP ping {host} 失败，尝试 TCP ping 端口 {port}...")
+        tcp_res = test_tcp_port(host, port, timeout=2)
+        if tcp_res['success']:
+            return tcp_res['latency']
+            
+        return None

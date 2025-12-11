@@ -99,32 +99,7 @@ def start_frpc_thread(window, config_path: str):
     window.th.error.connect(lambda m: on_mapping_error(window, m))
     window.th.terminated.connect(window.onFrpcTerminated)
     window.th.start()
-    # 安全策略：在启动后1秒尝试删除当前使用的配置文件（仅在非特殊情况下执行，特殊节点需保留更久）
-    try:
-        from PySide6.QtCore import QTimer
-        import os
-        def _safe_delete():
-            try:
-                # 特殊节点下保留文件，避免“找不到配置文件”问题
-                if not getattr(window, 'current_server_is_special', False) and os.path.exists(config_path):
-                    try:
-                        os.chmod(config_path, 0o600)
-                    except Exception:
-                        pass
-                    os.remove(config_path)
-            except Exception:
-                pass
-        QTimer.singleShot(1000, _safe_delete)
-    except Exception:
-        pass
 
-def validate_port(window):
-    """验证端口输入的有效性"""
-    local_port = window.mapping_tab.port_edit.text().strip()
-    if not local_port.isdigit() or not 1 <= int(local_port) <= 65535:
-        QMessageBox.warning(window, "错误", "请输入有效端口 (1-65535)")
-        return False
-    return True
 
 def get_server_details(window):
     """从UI获取服务器选择信息"""

@@ -83,6 +83,34 @@ QGroupBox::indicator:checked {
     background-color: #4CAF50;
     border: 1px solid #4CAF50;
 }
+
+/* RoomCard Styles */
+#RoomCard {
+    background-color: #ffffff;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+}
+#RoomCard:hover {
+    border: 1px solid #aaa;
+    background-color: #f9f9f9;
+}
+#cardTitle {
+    font-weight: bold;
+    font-size: 14px;
+    color: #000;
+}
+#cardPlayerCount {
+    color: #666;
+}
+#cardInfo {
+    font-size: 12px;
+    color: #555;
+}
+#cardDescription {
+    font-size: 12px;
+    color: #333;
+    font-style: italic;
+}
 """,
     "dark": """
 QWidget{background:#1e1e1e;font-size:14px;font-family:'Microsoft YaHei';color:#e0e0e0;}
@@ -139,6 +167,34 @@ QGroupBox::title {
     subcontrol-position: top left;
     padding: 0 3px;
     color: #ddd;
+}
+
+/* RoomCard Styles */
+#RoomCard {
+    background-color: #23272e;
+    border: 1px solid #444;
+    border-radius: 8px;
+}
+#RoomCard:hover {
+    border: 1px solid #888;
+    background-color: #2c313a;
+}
+#cardTitle {
+    font-weight: bold;
+    font-size: 14px;
+    color: #e0e0e0;
+}
+#cardPlayerCount {
+    color: #999;
+}
+#cardInfo {
+    font-size: 12px;
+    color: #aaa;
+}
+#cardDescription {
+    font-size: 12px;
+    color: #ccc;
+    font-style: italic;
 }
 """,
 }

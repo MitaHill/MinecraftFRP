@@ -56,3 +56,16 @@ def fetch_url_content(url, timeout=10):
         # Return empty string on failure, let caller handle it
         return "" 
 
+def post_json(url, data, timeout=10):
+    """
+    Unified HTTP POST interface for JSON data.
+    """
+    try:
+        session = get_session()
+        response = session.post(url, json=data, timeout=timeout)
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:
+        logger.error(f"Failed to POST to {url}: {e}")
+        return None
+

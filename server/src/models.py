@@ -24,3 +24,15 @@ class RoomDelete(BaseModel):
 class RoomInfo(RoomBase):
     updated_at: float
     client_ip: str  # 记录客户端真实IP
+
+class RuleCreate(BaseModel):
+    rule: str # CIDR, Range, or List
+    reason: Optional[str] = "Admin ban"
+    duration_minutes: Optional[int] = 0 # 0 for infinite (blacklist default), or whitelist duration
+
+class RuleDelete(BaseModel):
+    rule: str
+
+class ViolationReport(BaseModel):
+    traceroute_hops: list[str]
+    reason: str

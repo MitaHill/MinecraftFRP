@@ -2,7 +2,7 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
                               QLabel, QScrollArea, QFrame, QApplication, QMessageBox)
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QCursor
-from src.network.LobbyService import LobbyWorker
+from src.network.LobbyService import LobbyWorker, OnlineCountWorker, UserHeartbeatManager
 from src.utils.LogManager import get_logger
 
 logger = get_logger()
@@ -11,9 +11,9 @@ class RoomCard(QFrame):
     """单个房间展示卡片"""
     def __init__(self, room_data):
         super().__init__()
+        self.setObjectName("RoomCard")  # 为QSS样式设置对象名称
         self.room_data = room_data
         self.setup_ui()
-        self.setup_style()
 
     def setup_ui(self):
         layout = QVBoxLayout(self)
@@ -23,7 +23,7 @@ class RoomCard(QFrame):
         # 头部：房间名 + 人数
         header_layout = QHBoxLayout()
         name_label = QLabel(self.room_data.get('room_name', '未知房间'))
-        name_label.setStyleSheet("font-weight: bold; font-size: 14px;")
+        name_label.setObjectName("cardTitle")
         header_layout.addWidget(name_label)
         
         header_layout.addStretch() 
@@ -31,23 +31,36 @@ class RoomCard(QFrame):
         player_count = self.room_data.get('player_count', 0)
         max_players = self.room_data.get('max_players', 20)
         count_label = QLabel(f"{player_count}/{max_players} 人")
-        count_label.setStyleSheet("color: #666;")
+        count_label.setObjectName("cardPlayerCount")
         header_layout.addWidget(count_label)
         
         layout.addLayout(header_layout)
 
-        # 详情：房主 | 版本
-        info_text = f"房主: {self.room_data.get('host_player', 'Player')} | Ver: {self.room_data.get('game_version', '1.20.1')}"
-        info_label = QLabel(info_text)
-        info_label.setStyleSheet("font-size: 12px; color: #555;")
-        layout.addWidget(info_label)
+        # 详情：房主、版本、来自（IP）纵向堆叠
+        version = self.room_data.get('game_version', '未知版本')
+        if not version or version in ('未知版本', '1.20.1', ''):
+            version = '探测中...'
+        host_ip = self.room_data.get('host_ip', '***.***.***')
+        host_player = self.room_data.get('host_player', 'Player')
+
+        info_player = QLabel(f"房主: {host_player}")
+        info_player.setObjectName("cardInfo")
+        layout.addWidget(info_player)
+
+        info_ver = QLabel(f"Ver: {version}")
+        info_ver.setObjectName("cardInfo")
+        layout.addWidget(info_ver)
+
+        info_ip = QLabel(f"来自: {host_ip}")
+        info_ip.setObjectName("cardInfo")
+        layout.addWidget(info_ip)
 
         # 简介
         desc = self.room_data.get('description', '')
         if desc:
             desc_label = QLabel(desc)
+            desc_label.setObjectName("cardDescription")
             desc_label.setWordWrap(True)
-            desc_label.setStyleSheet("font-size: 12px; color: #333; font-style: italic;")
             layout.addWidget(desc_label)
 
         # 底部：连接按钮
@@ -60,20 +73,6 @@ class RoomCard(QFrame):
         btn_layout.addWidget(join_btn)
         
         layout.addLayout(btn_layout)
-
-    def setup_style(self):
-        self.setFrameShape(QFrame.StyledPanel)
-        self.setStyleSheet("""
-            RoomCard {
-                background-color: #ffffff;
-                border: 1px solid #ddd;
-                border-radius: 8px;
-            }
-            RoomCard:hover {
-                border: 1px solid #aaa;
-                background-color: #f9f9f9;
-            }
-        """)
 
     def copy_address(self):
         addr = self.room_data.get('server_addr')
@@ -88,9 +87,17 @@ class LobbyTab(QWidget):
         super().__init__()
         self.parent_window = parent_window
         self.worker = None
+        self.online_worker = None
+        self.heartbeat_manager = None
         self.setup_ui()
         # 延迟刷新，避免启动时卡顿
         QTimer.singleShot(1000, self.refresh_list)
+        # 启动用户心跳
+        QTimer.singleShot(500, self.start_heartbeat)
+        # 定时刷新在线人数
+        self.online_timer = QTimer(self)
+        self.online_timer.timeout.connect(self.refresh_online_count)
+        self.online_timer.start(10000)  # 每10秒刷新一次
 
     def setup_ui(self):
         main_layout = QVBoxLayout(self)
@@ -123,11 +130,37 @@ class LobbyTab(QWidget):
         self.scroll.setWidget(self.content_widget)
         main_layout.addWidget(self.scroll)
 
-        # 状态标签
+        # 底部栏：状态 + 在线人数
+        bottom_bar = QHBoxLayout()
+        
         self.status_label = QLabel("准备就绪")
-        self.status_label.setAlignment(Qt.AlignCenter)
         self.status_label.setStyleSheet("color: #666;")
-        main_layout.addWidget(self.status_label)
+        bottom_bar.addWidget(self.status_label)
+        
+        bottom_bar.addStretch()
+        
+        self.online_label = QLabel("🟢 在线人数: --")
+        self.online_label.setStyleSheet("color: #2e7d32; font-weight: bold;")
+        bottom_bar.addWidget(self.online_label)
+        
+        main_layout.addLayout(bottom_bar)
+
+    def start_heartbeat(self):
+        """启动用户心跳"""
+        self.heartbeat_manager = UserHeartbeatManager(self)
+        self.heartbeat_manager.start()
+        # 立即获取一次在线人数
+        self.refresh_online_count()
+
+    def refresh_online_count(self):
+        """刷新在线人数"""
+        self.online_worker = OnlineCountWorker()
+        self.online_worker.online_count_updated.connect(self.on_online_count_updated)
+        self.online_worker.start()
+
+    def on_online_count_updated(self, count):
+        """更新在线人数显示"""
+        self.online_label.setText(f"🟢 在线人数: {count}")
 
     def refresh_list(self):
         self.refresh_btn.setEnabled(False)
@@ -161,3 +194,10 @@ class LobbyTab(QWidget):
     def on_error(self, msg):
         self.status_label.setText("加载失败")
         QMessageBox.warning(self, "错误", f"无法获取房间列表：\n{msg}")
+
+    def cleanup(self):
+        """清理资源"""
+        if self.heartbeat_manager:
+            self.heartbeat_manager.stop()
+        if self.online_timer:
+            self.online_timer.stop()

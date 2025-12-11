@@ -1,5 +1,6 @@
 import json
-from PySide6.QtCore import QThread, Signal
+import urllib.request
+from PySide6.QtCore import QThread, Signal, QTimer, QObject
 from src.utils.HttpManager import fetch_url_content
 from src.utils.LogManager import get_logger
 
@@ -7,7 +8,10 @@ logger = get_logger()
 
 class LobbyService:
     """联机大厅服务类，负责与后端API交互"""
-    API_URL = "https://mapi.clash.ink/api/lobby/rooms"
+    API_BASE = "https://mapi.clash.ink/api/lobby"
+    API_URL = f"{API_BASE}/rooms"
+    HEARTBEAT_URL = f"{API_BASE}/heartbeat"
+    ONLINE_URL = f"{API_BASE}/online"
 
     @staticmethod
     def get_rooms():
@@ -32,6 +36,33 @@ class LobbyService:
             logger.error(f"Failed to fetch lobby rooms: {e}")
             return []
 
+    @staticmethod
+    def send_heartbeat():
+        """发送用户在线心跳"""
+        try:
+            req = urllib.request.Request(
+                LobbyService.HEARTBEAT_URL, 
+                method="POST",
+                headers={"Content-Type": "application/json", "User-Agent": "LMFP/1.3.1"}
+            )
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                return resp.status == 200
+        except Exception:
+            return False
+
+    @staticmethod
+    def get_online_count():
+        """获取在线用户数量"""
+        try:
+            content = fetch_url_content(LobbyService.ONLINE_URL)
+            if content:
+                data = json.loads(content)
+                if data.get("success"):
+                    return data.get("online_count", 0)
+        except Exception:
+            pass
+        return 0
+
 class LobbyWorker(QThread):
     """
     后台拉取房间列表的线程
@@ -48,3 +79,44 @@ class LobbyWorker(QThread):
             self.rooms_loaded.emit(rooms)
         except Exception as e:
             self.error_occurred.emit(str(e))
+
+class OnlineCountWorker(QThread):
+    """后台获取在线人数的线程"""
+    online_count_updated = Signal(int)
+    
+    def run(self):
+        try:
+            count = LobbyService.get_online_count()
+            self.online_count_updated.emit(count)
+        except Exception:
+            self.online_count_updated.emit(0)
+
+class UserHeartbeatManager(QObject):
+    """用户心跳管理器，每10秒发送一次心跳"""
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._timer = QTimer(self)
+        self._timer.timeout.connect(self._send_heartbeat)
+        self._worker = None
+    
+    def start(self):
+        """启动心跳"""
+        # 立即发送一次
+        self._send_heartbeat()
+        # 每10秒发送一次
+        self._timer.start(10000)
+    
+    def stop(self):
+        """停止心跳"""
+        self._timer.stop()
+    
+    def _send_heartbeat(self):
+        """在后台线程发送心跳"""
+        self._worker = HeartbeatWorker()
+        self._worker.start()
+
+class HeartbeatWorker(QThread):
+    """后台发送心跳的线程"""
+    def run(self):
+        LobbyService.send_heartbeat()

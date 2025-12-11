@@ -65,63 +65,14 @@ class SSHManager:
 
 class ServerManagementConfig:
     def __init__(self):
-        self.ssh_manager = SSHManager()
-        self.admin_password = "kindmitaishere@gmail.com"
-        self.server_host = "clash.ink"
-        self.server_user = "root"
-        self.server_password = "q174285396q"
-        self.remote_file_path = "/root/chfs/share/MinecraftFRP/Data/frp-server-list.json"
-        self.encryption_key = "clashman"
-        self.config_dir = Path("config")
-        
+        """此功能已移至独立的管理员工具。"""
+        pass
+
     def verify_admin_password(self, password):
-        """验证管理员密码"""
-        return password == self.admin_password
+        return False
     
     def download_server_list(self):
-        """下载服务器列表文件"""
-        logger.info("开始下载服务器列表文件...")
-        try:
-            # 连接SSH
-            logger.info("准备连接SSH...")
-            if not self.ssh_manager.connect(self.server_host, self.server_user, self.server_password):
-                # 进一步的日志记录已经在connect方法中完成
-                return False, "SSH连接失败"
-            
-            # 下载到config目录
-            local_path = self.config_dir / "frp-server-list-remote.json"
-            self.config_dir.mkdir(exist_ok=True)
-            
-            logger.info("SSH连接成功，准备下载文件...")
-            if self.ssh_manager.download_file(self.remote_file_path, str(local_path)):
-                self.ssh_manager.close()
-                logger.info(f"服务器列表成功下载到 {local_path}")
-                return True, f"服务器列表已下载到 {local_path}"
-            else:
-                self.ssh_manager.close()
-                logger.error("download_file 方法返回False")
-                return False, "下载文件失败"
-                
-        except Exception as e:
-            logger.error(f"下载服务器列表过程中发生未预料的错误: {e}", exc_info=True)
-            if self.ssh_manager:
-                self.ssh_manager.close()
-            return False, f"下载过程中发生错误: {e}"
+        return False, "此功能已禁用"
     
     def upload_server_list(self, local_file_path):
-        """上传服务器列表文件"""
-        try:
-            # 连接SSH
-            if not self.ssh_manager.connect(self.server_host, self.server_user, self.server_password):
-                return False, "SSH连接失败"
-            
-            if self.ssh_manager.upload_file(local_file_path, self.remote_file_path):
-                self.ssh_manager.close()
-                return True, "服务器列表已成功上传"
-            else:
-                self.ssh_manager.close()
-                return False, "上传文件失败"
-                
-        except Exception as e:
-            self.ssh_manager.close()
-            return False, f"上传过程中发生错误: {e}"
+        return False, "此功能已禁用"

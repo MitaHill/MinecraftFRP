@@ -85,6 +85,19 @@ def main():
 
         app = QApplication(sys.argv)
         
+        # --- 启动来源验证 ---
+        # 必须由 launcher.exe 启动 (带有 --launched-by-launcher 参数)
+        if "--launched-by-launcher" not in sys.argv:
+            # 允许在开发环境下(非编译)直接运行，判断依据可以是是否为 frozen (Nuitka/PyInstaller)
+            # 或者简单点：如果参数里没有这个标记，直接拒绝。
+            # 考虑到开发调试方便，我们可以允许通过命令行手动加参数，或者检查是否是 python 解释器直接运行
+            # 但为了满足用户"只有被启动器调用时才正常启动"的强需求，我们严格执行。
+            # 开发人员调试时需手动添加该参数: python app.py --launched-by-launcher
+            QMessageBox.critical(None, "启动错误", 
+                                 "请使用启动器 (Launcher.exe) 启动本程序！\n\n"
+                                 "Please run Launcher.exe to start the application.")
+            sys.exit(1)
+        
         # --- 单实例互斥锁 ---
         lock_file = QLockFile(QDir.tempPath() + "/MinecraftFRP.lock")
         lock_file.setStaleLockTime(0) # 如果之前崩溃，立即接管

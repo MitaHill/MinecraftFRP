@@ -35,6 +35,9 @@ def initialize_managers(window):
 def load_configuration(window):
     """加载YAML配置"""
     window.app_config = window.yaml_config.load_config("app_config.yaml", DEFAULT_APP_CONFIG)
+    # 防御性处理：如果配置加载失败，使用默认配置
+    if window.app_config is None:
+        window.app_config = DEFAULT_APP_CONFIG.copy() if DEFAULT_APP_CONFIG else {}
     settings = window.app_config.get("settings", {})
     window.auto_mapping_enabled = settings.get("auto_mapping", False)
     window.dark_mode_override = settings.get("dark_mode_override", False)
@@ -49,7 +52,7 @@ def initialize_timers(window):
 def start_log_trimmer(window):
     """启动日志裁剪线程"""
     try:
-        logs_size = window.app_config.get("app", {}).get("logs_size", "1MB")
+        logs_size = (window.app_config or {}).get("app", {}).get("logs_size", "1MB")
         docs_logs = os.path.join(os.path.expanduser('~'), 'Documents', 'MitaHillFRP', 'logs')
         log_path = os.path.join(docs_logs, "app.log")
         window.log_trimmer = LogTrimmer(log_path, logs_size)

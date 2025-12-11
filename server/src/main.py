@@ -1,13 +1,26 @@
-from fastapi import FastAPI, Request, HTTPException, BackgroundTasks
+from fastapi import FastAPI, Request, HTTPException, BackgroundTasks, Header, Depends
 from contextlib import asynccontextmanager
 import asyncio
-from .models import RoomCreate, RoomDelete
-from .database import init_db, upsert_room, delete_room, get_rooms, cleanup_stale_rooms, check_ip_conflict, update_room_status
-from .utils import get_effective_ip
+from typing import List
+from datetime import datetime
+from .models import RoomCreate, RoomDelete, RuleCreate, RuleDelete, ViolationReport
+from .database import (init_db, upsert_room, delete_room, get_rooms, cleanup_stale_rooms, 
+                       check_ip_conflict, update_room_status, update_online_heartbeat, 
+                       get_online_count, cleanup_offline_users,
+                       add_blacklist_rule, remove_blacklist_rule, get_blacklist_rules,
+                       add_whitelist_rule, remove_whitelist_rule, get_whitelist_rules,
+                       get_access_logs)
+from .utils import get_effective_ip, mask_ip
 from .logger import logger
 from .security import RateLimitMiddleware
 from .moderation import moderator
 from .minecraft_pinger import get_server_motd, get_server_status
+
+ADMIN_KEY = "mcf-admin-8888"
+
+async def verify_admin(x_admin_key: str = Header(None)):
+    if x_admin_key != ADMIN_KEY:
+        raise HTTPException(status_code=403, detail="Invalid Admin Key")
 
 # 后台清理任务
 async def cleanup_task():
@@ -17,6 +30,10 @@ async def cleanup_task():
             deleted = cleanup_stale_rooms(timeout_seconds=10)
             if deleted > 0:
                 logger.info(f"Cleaned up {deleted} stale rooms")
+            # 清理超时的在线用户（15秒超时）
+            offline = cleanup_offline_users(timeout_seconds=15)
+            if offline > 0:
+                logger.info(f"Cleaned up {offline} offline users")
         except Exception as e:
             logger.error(f"Cleanup error: {e}")
         await asyncio.sleep(60)
@@ -134,6 +151,12 @@ async def create_or_update_room(room: RoomCreate, request: Request, background_t
         logger.warning(f"Blocked sensitive content from {client_ip}: '{bad_word}' in description")
         return {"success": False, "message": f"简介包含敏感词: {bad_word}"}
 
+    # Minecraft 服务器可访问性验证
+    status = await get_server_status(room.server_addr, room.remote_port)
+    if not status:
+        logger.warning(f"Validation failed for {room.server_addr}:{room.remote_port}. Not a valid Minecraft server.")
+        return {"success": False, "message": "Validation failed"}
+
     try:
         upsert_room(room, client_ip)
         
@@ -167,9 +190,109 @@ async def remove_room(room: RoomDelete):
 
 @app.get("/api/lobby/rooms")
 async def list_rooms():
-    """获取房间列表"""
-    return {"success": True, "rooms": get_rooms()}
+    """获取房间列表，返回脱敏的房主IP"""
+    rooms = get_rooms()
+    # 将房间列表转为字典并脱敏IP
+    rooms_data = []
+    for room in rooms:
+        room_dict = {
+            "full_room_code": room.full_room_code,
+            "remote_port": room.remote_port,
+            "node_id": room.node_id,
+            "room_name": room.room_name,
+            "game_version": room.game_version,
+            "player_count": room.player_count,
+            "max_players": room.max_players,
+            "description": room.description,
+            "is_public": room.is_public,
+            "host_player": room.host_player,
+            "server_addr": room.server_addr,
+            "host_ip": mask_ip(room.client_ip),  # 脱敏后的房主IP
+            "updated_at": room.updated_at
+        }
+        rooms_data.append(room_dict)
+    return {"success": True, "rooms": rooms_data}
+
+@app.post("/api/lobby/heartbeat")
+async def user_heartbeat(request: Request):
+    """用户在线心跳，用于统计在线人数"""
+    client_ip = get_effective_ip(request)
+    try:
+        update_online_heartbeat(client_ip)
+        return {"success": True}
+    except Exception as e:
+        logger.error(f"Heartbeat error from {client_ip}: {e}")
+        return {"success": False}
+
+@app.get("/api/lobby/online")
+async def get_online():
+    """获取当前在线用户数量"""
+    try:
+        count = get_online_count(timeout_seconds=15)
+        return {"success": True, "online_count": count}
+    except Exception as e:
+        logger.error(f"Get online count error: {e}")
+        return {"success": False, "online_count": 0}
 
 @app.get("/")
 async def root():
     return {"message": "MinecraftFRP Lobby Server is running"}
+
+# --- Admin APIs ---
+
+@app.get("/api/admin/access_logs", dependencies=[Depends(verify_admin)])
+async def api_get_access_logs():
+    return {"success": True, "logs": get_access_logs()}
+
+@app.get("/api/admin/blacklist", dependencies=[Depends(verify_admin)])
+async def api_get_blacklist():
+    return {"success": True, "rules": get_blacklist_rules()}
+
+@app.post("/api/admin/blacklist", dependencies=[Depends(verify_admin)])
+async def api_add_blacklist(rule: RuleCreate):
+    try:
+        add_blacklist_rule(rule.rule, rule.reason)
+        return {"success": True}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+@app.delete("/api/admin/blacklist", dependencies=[Depends(verify_admin)])
+async def api_remove_blacklist(rule: RuleDelete):
+    remove_blacklist_rule(rule.rule)
+    return {"success": True}
+
+@app.get("/api/admin/whitelist", dependencies=[Depends(verify_admin)])
+async def api_get_whitelist():
+    return {"success": True, "rules": get_whitelist_rules()}
+
+@app.post("/api/admin/whitelist", dependencies=[Depends(verify_admin)])
+async def api_add_whitelist(rule: RuleCreate):
+    try:
+        add_whitelist_rule(rule.rule, rule.reason, rule.duration_minutes)
+        return {"success": True}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+@app.delete("/api/admin/whitelist", dependencies=[Depends(verify_admin)])
+async def api_remove_whitelist(rule: RuleDelete):
+    remove_whitelist_rule(rule.rule)
+    return {"success": True}
+
+# --- Client APIs ---
+
+@app.get("/api/check_access")
+async def check_access(request: Request):
+    """Client startup check. Logic is handled by Middleware.
+    If we reach here, it means we passed the Middleware checks (Whitelist/Blacklist/Geo)."""
+    return {"success": True, "message": "Access Granted"}
+
+@app.post("/api/report_violation")
+async def report_violation(report: ViolationReport, request: Request):
+    client_ip = get_effective_ip(request)
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    reason = f"封禁于{now_str} {client_ip} 因为是非家庭宽带 (自动上报)"
+    
+    logger.warning(f"Self-reported violation from {client_ip}: {reason}")
+    # Add to blacklist rules
+    add_blacklist_rule(client_ip, reason)
+    return {"success": True}

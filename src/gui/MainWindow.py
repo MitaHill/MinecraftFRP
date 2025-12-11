@@ -3,7 +3,7 @@ import os
 import sys
 import subprocess
 from pathlib import Path
-from PySide6.QtCore import QMutex, QTimer, Qt
+from PySide6.QtCore import QMutex, QTimer, Qt, QThread, Signal
 from PySide6.QtWidgets import QWidget, QMessageBox
 from PySide6.QtGui import QCloseEvent
 
@@ -22,14 +22,21 @@ from src.gui.dialogs.AdDialog import AdDialog
 from src.gui.dialogs.AdThread import AdThread
 
 # Feature/Action Imports
-from src.gui.main_window.Threads import (start_lan_poller, load_ping_values, update_server_combo, 
+from src.gui.main_window.Threads import (start_lan_poller, load_ping_values, update_server_combo,
                                        start_server_list_update)
 from src.gui.main_window.Handlers import (set_port, start_map, copy_link, log_message,
                                           on_auto_mapping_changed, on_dark_mode_changed, on_server_changed)
-from src.gui.main_window.Actions import open_help_browser, open_server_management_dialog
+from src.gui.main_window.Actions import open_help_browser
 from src.utils.LogManager import get_logger
 
 logger = get_logger()
+
+class SecurityCheckThread(QThread):
+    check_finished = Signal(bool, str)
+    def run(self):
+        from src.core.SecurityService import SecurityService
+        passed, reason = SecurityService.perform_startup_check()
+        self.check_finished.emit(passed, reason)
 
 class PortMappingApp(QWidget):
     inst = None
@@ -49,6 +56,7 @@ class PortMappingApp(QWidget):
         self.log_trimmer = None
         self.ping_thread = None
         self.ad_thread = None
+        self.security_check_thread = None
         self.app_mutex = QMutex()
         self.is_closing = False
         self.current_update_info = None
@@ -79,6 +87,20 @@ class PortMappingApp(QWidget):
         """Deferred initialization: executes heavy tasks after the window is shown."""
         logger.info("Performing deferred initialization...")
         
+        # Start Security Check
+        self.security_check_thread = SecurityCheckThread()
+        self.security_check_thread.check_finished.connect(self.on_security_check_finished)
+        self.security_check_thread.start()
+        
+    def on_security_check_finished(self, passed, reason):
+        if not passed:
+             QMessageBox.critical(self, "安全警告", reason)
+             self.close()
+             return
+             
+        self.continue_initialization()
+
+    def continue_initialization(self):
         # Log version information
         from src.version import get_version_string, VERSION, GIT_HASH
         import json
@@ -107,7 +129,7 @@ class PortMappingApp(QWidget):
         post_ui_initialize(self)
 
         start_lan_poller(self)
-        
+
         # 立即启动后台网络任务（取消2秒延迟）
         self._start_background_tasks()
         
@@ -367,10 +389,7 @@ class PortMappingApp(QWidget):
         self.load_ping_values()
         
     def update_ad(self):
-        ad = self.ad_manager.get_next_ad()
-        color = "cyan" if self.theme == "dark" else "blue"
-        text = f'<a href="{ad["url"]}" style="color:{color}">{ad["show"]}</a>' if ad else "无广告"
-        self.mapping_tab.ad_label.setText(text)
+        self._update_scrolling_ad()
 
     # --- Proxy methods for signal/event connections ---
     def set_port(self, port): set_port(self, port)
@@ -380,7 +399,6 @@ class PortMappingApp(QWidget):
     def on_auto_mapping_changed(self, state): on_auto_mapping_changed(self, state)
     def on_dark_mode_changed(self, state): on_dark_mode_changed(self, state)
     def on_server_changed(self, text): on_server_changed(self, text)
-    def open_server_management(self): open_server_management_dialog(self)
     def start_web_browser(self): open_help_browser(self)
     def load_ping_values(self): load_ping_values(self)
     def log(self, message, color=None): log_message(self, message, color)

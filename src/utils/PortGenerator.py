@@ -7,8 +7,8 @@ import os
 config_manager = YamlConfigManager(config_dir=os.path.join(os.path.expanduser('~'), 'Documents', 'MitaHillFRP', 'Config'))
 app_config = config_manager.load_config("app_config.yaml", DEFAULT_APP_CONFIG)
 
-# 避免使用的端口列表
-RESERVED_PORTS = set(app_config.get("network", {}).get("reserved_ports", [80, 443, 3306, 8080, 25565]))
+# 避免使用的端口列表，防御性编程处理 None
+RESERVED_PORTS = set((app_config or {}).get("network", {}).get("reserved_ports", [80, 443, 3306, 8080, 25565]))
 
 # 生成随机端口
 def gen_port():

@@ -316,7 +316,8 @@ def _launch_main_app(info: dict) -> int:
     try:
         # 设置工作目录为可执行文件所在目录，避免路径问题
         cwd = app_path.parent
-        subprocess.Popen([str(app_path)], cwd=str(cwd))
+        # 添加启动参数 --launched-by-launcher 以便主程序验证
+        subprocess.Popen([str(app_path), "--launched-by-launcher"], cwd=str(cwd))
         return 0
     except Exception as e:
         _safe_log(f"launch app error: {e}")

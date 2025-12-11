@@ -2,7 +2,6 @@ import webbrowser
 from PySide6.QtWidgets import QMessageBox
 from PySide6.QtCore import QUrl
 from PySide6.QtGui import QDesktopServices
-from src.gui.dialogs.ServerManagementDialog import ServerManagementDialog
 
 def open_help_browser(window):
     """打开帮助文档网页（优先内置浏览器Tab）"""
@@ -25,8 +24,4 @@ def open_help_browser(window):
 
 def open_server_management_dialog(window):
     """打开服务器管理配置对话框"""
-    try:
-        dialog = ServerManagementDialog(window)
-        dialog.exec()
-    except Exception as e:
-        QMessageBox.critical(window, "错误", f"打开服务器管理配置失败: {e}")
+    QMessageBox.information(window, "提示", "此功能已移至独立的管理员工具。")

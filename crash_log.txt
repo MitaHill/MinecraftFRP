@@ -1,6 +1,4 @@
 Traceback (most recent call last):
-  File "D:\MinecraftFRP\src\gui\MainWindow.py", line 377, in start_map
-    def start_map(self): start_map(self)
-  File "D:\MinecraftFRP\src\gui\main_window\Handlers.py", line 46, in start_map
-    if not validate_port(window):
-NameError: name 'validate_port' is not defined
+  File "D:\MinecraftFRP\src\gui\MainWindow.py", line 370, in update_ad
+    ad = self.ad_manager.get_next_ad()
+AttributeError: 'PortMappingApp' object has no attribute 'ad_manager'

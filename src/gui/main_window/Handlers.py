@@ -9,7 +9,6 @@ from src.core.ConfigManager import ConfigManager
 from src.utils.PortGenerator import gen_port
 from src.gui.main_window.Threads import wait_for_thread
 from src.gui.styles import STYLE
-from src.network.WebGuard import WebGuard
 from src.network.HeartbeatManager import HeartbeatManager
 
 def set_port(window, port):
@@ -110,17 +109,6 @@ def start_map(window):
         start_frpc_thread(window, config_path)
         log_message(window, f"开始映射本地端口 {window.mapping_tab.port_edit.text().strip()} 到 {window.link}", "blue")
 
-        # 启动WebGuard周期检测，防止用户建站
-        try:
-            window.web_guard = WebGuard(
-                port_getter=lambda: int(window.mapping_tab.port_edit.text().strip() or '0'),
-                stop_callback=lambda msg: _stop_mapping_due_to_web(window, msg),
-                interval_sec=30,
-            )
-            window.web_guard.start()
-        except Exception:
-            pass
-
 def start_frpc_thread(window, config_path: str):
     """初始化并启动FrpcThread"""
     window.th = FrpcThread(config_path)
@@ -167,10 +155,10 @@ def on_mapping_success(window):
                 if not hasattr(window, "heartbeat_manager"):
                     window.heartbeat_manager = HeartbeatManager(
                         "https://lytapi.asia/api.php",
-                        lambda msg, c=None: log_message(window, msg, c),
                         lambda: bool(window.th and window.th.manager.is_running())
                     )
-                
+                    window.heartbeat_manager.log_signal.connect(lambda msg, c: log_message(window, msg, c))
+
                 room_info_special = {
                     "full_room_code": f"{window._current_mapping['remote_port']}_{node_id}",
                     "room_name": f"{server_name}的房间",
@@ -189,9 +177,10 @@ def on_mapping_success(window):
                 if not hasattr(window, "lobby_heartbeat_manager"):
                     window.lobby_heartbeat_manager = HeartbeatManager(
                         lobby_target_url,
-                        lambda msg, c=None: None, # 大厅心跳不刷屏日志，静默运行
                         lambda: bool(window.th and window.th.manager.is_running())
                     )
+                    # 大厅心跳不刷屏日志，静默运行
+                    window.lobby_heartbeat_manager.log_signal.connect(lambda msg, c: None)
                 
                 # 复用相同信息，但发送给联机厅
                 window.lobby_heartbeat_manager.submit_room_info(room_info_special, start_heartbeat=True)
@@ -205,14 +194,14 @@ def on_mapping_success(window):
             if not hasattr(window, "lobby_heartbeat_manager"):
                 window.lobby_heartbeat_manager = HeartbeatManager(
                     lobby_target_url,
-                    lambda msg, c=None: log_message(window, msg, c),
                     lambda: bool(window.th and window.th.manager.is_running())
                 )
+                window.lobby_heartbeat_manager.log_signal.connect(lambda msg, c: handle_heartbeat_response(window, msg, c))
             
             room_info_generic = {
                 "full_room_code": f"{window._current_mapping['remote_port']}_{node_id}",
                 "room_name": window.mapping_tab.room_name_edit.text() or f"{getpass.getuser()}的房间",
-                "game_version": "1.20.1", 
+                "game_version": "未知版本",  # 由服务端探测真实版本
                 "player_count": 1,
                 "max_players": window.mapping_tab.max_players_spin.value(),
                 "description": window.mapping_tab.room_desc_edit.text() or "欢迎加入！",
@@ -225,17 +214,14 @@ def on_mapping_success(window):
             
     except Exception as e:
         log_message(window, f"启动心跳失败: {e}", "orange")
-        log_message(window, f"启动心跳失败: {e}", "orange")
 
-from PySide6.QtCore import QTimer
+def handle_heartbeat_response(window, message, color):
+    if "Validation failed" in message:
+        _stop_mapping_due_to_validation_failure(window, "服务器验证失败，映射已停止。请确保您的Minecraft服务器已正确开启。")
+    else:
+        log_message(window, message, color)
 
-def _stop_mapping_due_to_web(window, message):
-    # 停止周期 WebGuard，避免重复触发
-    try:
-        if hasattr(window, "web_guard"):
-            window.web_guard.stop()
-    except Exception:
-        pass
+def _stop_mapping_due_to_validation_failure(window, message):
     # 异步停止映射线程，避免阻塞事件循环
     try:
         if window.th and window.th.isRunning():
@@ -245,7 +231,7 @@ def _stop_mapping_due_to_web(window, message):
     # 立即提示用户，但不阻塞线程终止
     log_message(window, message, "red")
     try:
-        QMessageBox.warning(window, "安全策略", message)
+        QMessageBox.warning(window, "验证失败", message)
     except Exception:
         pass
 

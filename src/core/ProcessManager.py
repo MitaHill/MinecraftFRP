@@ -74,9 +74,12 @@ class ProcessManager:
             self._cleanup()
 
     def stop(self):
-        """停止当前运行的进程"""
-        self._stop_event.set()
-        self._cleanup()
+        """以非阻塞方式停止当前运行的进程"""
+        if not self._stop_event.is_set():
+            self._stop_event.set()
+            # 在后台线程中执行清理，避免阻塞调用者
+            cleanup_thread = threading.Thread(target=self._cleanup, daemon=True)
+            cleanup_thread.start()
 
     def _cleanup(self):
         """清理进程资源"""

@@ -1,6 +1,5 @@
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QPushButton, 
                               QLabel, QCheckBox, QMessageBox)
-from src.gui.dialogs.ServerManagementDialog import ServerManagementDialog
 
 class SettingsTab(QWidget):
     def __init__(self, parent_window):
@@ -50,8 +49,4 @@ class SettingsTab(QWidget):
 
     def open_server_management(self):
         """打开服务器管理配置对话框"""
-        try:
-            dialog = ServerManagementDialog(self.parent_window)
-            dialog.exec()
-        except Exception as e:
-            QMessageBox.critical(self, "错误", f"打开服务器管理配置失败: {e}")
+        QMessageBox.information(self, "提示", "此功能已移至独立的管理员工具 (admin_gui.py)。")

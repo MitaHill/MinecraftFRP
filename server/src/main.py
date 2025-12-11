@@ -2,12 +2,12 @@ from fastapi import FastAPI, Request, HTTPException, BackgroundTasks
 from contextlib import asynccontextmanager
 import asyncio
 from .models import RoomCreate, RoomDelete
-from .database import init_db, upsert_room, delete_room, get_rooms, cleanup_stale_rooms, check_ip_conflict
+from .database import init_db, upsert_room, delete_room, get_rooms, cleanup_stale_rooms, check_ip_conflict, update_room_status
 from .utils import get_effective_ip
 from .logger import logger
 from .security import RateLimitMiddleware
 from .moderation import moderator
-from .minecraft_pinger import get_server_motd
+from .minecraft_pinger import get_server_motd, get_server_status
 
 # 后台清理任务
 async def cleanup_task():
@@ -20,6 +20,43 @@ async def cleanup_task():
         except Exception as e:
             logger.error(f"Cleanup error: {e}")
         await asyncio.sleep(60)
+
+# 版本探测任务
+async def version_detection_task():
+    """后台任务：定期探测所有房间的真实版本和MOTD，并更新数据库"""
+    while True:
+        try:
+            rooms = get_rooms(limit=500)
+            for room in rooms:
+                try:
+                    # 获取服务器真实状态
+                    status = await get_server_status(room.server_addr, room.remote_port)
+
+                    if status:
+                        version = status.get("version", "")
+                        description = status.get("description", "")
+
+                        # 更新数据库中的版本和MOTD
+                        update_room_status(room.full_room_code, version, description)
+
+                        # 同时检查MOTD敏感词
+                        bad_word = moderator.check_text(description)
+                        if bad_word:
+                            logger.warning(f"VERSION_DETECT VIOLATION: Room {room.full_room_code} MOTD contains '{bad_word}'. Deleting.")
+                            delete_room(room.remote_port, room.node_id)
+
+                except Exception as e:
+                    # 单个房间探测失败不影响其他房间
+                    pass
+
+                # 避免过快请求，每个房间间隔0.5秒
+                await asyncio.sleep(0.5)
+
+        except Exception as e:
+            logger.error(f"Version detection task error: {e}")
+
+        # 每30秒执行一轮扫描
+        await asyncio.sleep(30)
 
 async def audit_room_task(host: str, port: int, full_room_code: str, remote_port: int, node_id: int):
     """后台任务：审核房间 MOTD"""
@@ -52,13 +89,18 @@ async def lifespan(app: FastAPI):
     moderator.load_rules()
     
     # 启动后台清理任务
-    task = asyncio.create_task(cleanup_task())
+    cleanup = asyncio.create_task(cleanup_task())
     logger.info("Background cleanup task started")
     
+    # 启动版本探测任务
+    version_detect = asyncio.create_task(version_detection_task())
+    logger.info("Version detection task started")
+
     yield
     
     # 关闭时取消任务
-    task.cancel()
+    cleanup.cancel()
+    version_detect.cancel()
     logger.info("Server shutting down...")
 
 app = FastAPI(lifespan=lifespan)

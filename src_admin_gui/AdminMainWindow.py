@@ -9,6 +9,7 @@ from src_admin_gui.AdminClient import AdminClient
 from src_admin_gui.ServerManagementDialog import ServerManagementDialog
 from src_admin_gui.LogManager import get_logger
 from src_admin_gui.QtSignalHandler import QtSignalHandler
+from src_admin_gui.OnlineUsersWidget import OnlineUsersWidget
 
 logger = get_logger()
 
@@ -23,7 +24,7 @@ class LocalLogWidget(QWidget):
         
         # Tools
         h = QHBoxLayout()
-        clear_btn = QPushButton("Clear Logs")
+        clear_btn = QPushButton("清空日志 (Clear Logs)")
         clear_btn.clicked.connect(self.clear_logs)
         h.addWidget(clear_btn)
         h.addStretch()
@@ -70,22 +71,23 @@ class RulesWidget(QWidget):
         # Controls
         h = QHBoxLayout()
         self.rule_input = QLineEdit()
-        self.rule_input.setPlaceholderText("CIDR (1.2.3.0/24), Range (1.1.1.1-1.1.1.5), IP")
+        self.rule_input.setPlaceholderText("CIDR (1.2.3.0/24), IP范围 (1.1.1.1-1.1.1.5), IP")
         self.reason_input = QLineEdit()
-        self.reason_input.setPlaceholderText("Reason / Description")
+        self.reason_input.setPlaceholderText("封禁原因 / 备注 (Reason)")
         
         if self.mode == "whitelist":
-            self.reason_input.setPlaceholderText("Description")
+            self.reason_input.setPlaceholderText("备注 (Description)")
         
-        add_btn = QPushButton(f"Add to {self.mode.title()}")
+        btn_text = "添加到黑名单" if self.mode == "blacklist" else "添加到白名单"
+        add_btn = QPushButton(btn_text)
         add_btn.clicked.connect(self.add_rule)
         
-        refresh_btn = QPushButton("Refresh")
+        refresh_btn = QPushButton("刷新 (Refresh)")
         refresh_btn.clicked.connect(self.refresh)
         
-        h.addWidget(QLabel("Rule:"))
+        h.addWidget(QLabel("规则 (Rule):"))
         h.addWidget(self.rule_input)
-        h.addWidget(QLabel("Info:"))
+        h.addWidget(QLabel("信息 (Info):"))
         h.addWidget(self.reason_input)
         h.addWidget(add_btn)
         h.addWidget(refresh_btn)
@@ -93,7 +95,7 @@ class RulesWidget(QWidget):
         
         # Table
         self.table = QTableWidget()
-        cols = ["Rule", "Info", "Created At"]
+        cols = ["规则 (Rule)", "信息 (Info)", "创建时间 (Created At)"]
         self.table.setColumnCount(len(cols))
         self.table.setHorizontalHeaderLabels(cols)
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
@@ -106,7 +108,7 @@ class RulesWidget(QWidget):
         
     def refresh(self):
         try:
-            logger.info(f"Refreshing {self.mode} rules...")
+            logger.info(f"刷新 {self.mode} 规则...")
             if self.mode == "blacklist":
                 rules = AdminClient.get_blacklist()
             else:
@@ -120,10 +122,10 @@ class RulesWidget(QWidget):
                 desc = r.get('reason') if self.mode == 'blacklist' else r.get('description')
                 self.table.setItem(row, 1, QTableWidgetItem(str(desc)))
                 self.table.setItem(row, 2, QTableWidgetItem(str(r.get('created_at', ''))))
-            logger.info(f"Loaded {len(rules)} {self.mode} rules.")
+            logger.info(f"加载了 {len(rules)} 条 {self.mode} 规则。")
         except Exception as e:
-            logger.error(f"Failed to refresh {self.mode} rules: {e}")
-            QMessageBox.warning(self, "Error", f"Failed to refresh: {e}")
+            logger.error(f"刷新 {self.mode} 规则失败: {e}")
+            QMessageBox.warning(self, "错误", f"刷新失败: {e}")
 
     def add_rule(self):
         rule = self.rule_input.text().strip()
@@ -131,7 +133,7 @@ class RulesWidget(QWidget):
         if not rule: return
         
         try:
-            logger.info(f"Adding {self.mode} rule: {rule} ({reason})")
+            logger.info(f"添加 {self.mode} 规则: {rule} ({reason})")
             if self.mode == "blacklist":
                 AdminClient.add_blacklist(rule, reason)
             else:
@@ -139,15 +141,15 @@ class RulesWidget(QWidget):
             self.rule_input.clear()
             self.reason_input.clear()
             self.refresh()
-            logger.info(f"Successfully added rule: {rule}")
-            QMessageBox.information(self, "Success", "Rule added.")
+            logger.info(f"成功添加规则: {rule}")
+            QMessageBox.information(self, "成功", "规则已添加。")
         except Exception as e:
-            logger.error(f"Failed to add rule {rule}: {e}")
-            QMessageBox.critical(self, "Error", f"Failed to add rule: {e}")
+            logger.error(f"添加规则 {rule} 失败: {e}")
+            QMessageBox.critical(self, "错误", f"添加规则失败: {e}")
 
     def show_context_menu(self, pos):
         menu = QMenu(self)
-        delete_action = QAction("Delete Rule", self)
+        delete_action = QAction("删除规则 (Delete)", self)
         delete_action.triggered.connect(self.delete_selected)
         menu.addAction(delete_action)
         menu.exec(self.table.mapToGlobal(pos))
@@ -157,20 +159,20 @@ class RulesWidget(QWidget):
         if row < 0: return
         rule = self.table.item(row, 0).text()
         
-        if QMessageBox.question(self, "Confirm", f"Delete rule {rule}?") != QMessageBox.Yes:
+        if QMessageBox.question(self, "确认", f"确定要删除规则 {rule} 吗?") != QMessageBox.Yes:
             return
             
         try:
-            logger.info(f"Deleting {self.mode} rule: {rule}")
+            logger.info(f"正在删除 {self.mode} 规则: {rule}")
             if self.mode == "blacklist":
                 AdminClient.remove_blacklist(rule)
             else:
                 AdminClient.remove_whitelist(rule)
             self.refresh()
-            logger.info(f"Successfully deleted rule: {rule}")
+            logger.info(f"成功删除规则: {rule}")
         except Exception as e:
-            logger.error(f"Failed to delete rule {rule}: {e}")
-            QMessageBox.critical(self, "Error", f"Failed to delete: {e}")
+            logger.error(f"删除规则 {rule} 失败: {e}")
+            QMessageBox.critical(self, "错误", f"删除失败: {e}")
 
 class AccessLogsWidget(QWidget):
     def __init__(self):
@@ -180,12 +182,12 @@ class AccessLogsWidget(QWidget):
     def init_ui(self):
         layout = QVBoxLayout(self)
         
-        refresh_btn = QPushButton("Refresh Logs")
+        refresh_btn = QPushButton("刷新日志 (Refresh Logs)")
         refresh_btn.clicked.connect(self.refresh)
         layout.addWidget(refresh_btn)
         
         self.table = QTableWidget()
-        cols = ["IP", "Time", "Action"]
+        cols = ["IP地址", "时间 (Time)", "操作 (Action)"]
         self.table.setColumnCount(len(cols))
         self.table.setHorizontalHeaderLabels(cols)
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
@@ -205,42 +207,45 @@ class AccessLogsWidget(QWidget):
                 self.table.setItem(row, 1, QTableWidgetItem(time_str))
                 self.table.setItem(row, 2, QTableWidgetItem(str(log.get('action', ''))))
         except Exception as e:
-            QMessageBox.warning(self, "Error", f"Failed to fetch logs: {e}")
+            QMessageBox.warning(self, "错误", f"获取日志失败: {e}")
 
 class AdminMainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("MinecraftFRP Admin Console")
+        self.setWindowTitle("MinecraftFRP 管理控制台 (Admin Console)")
         self.resize(1000, 700)
         
         self.tabs = QTabWidget()
         self.setCentralWidget(self.tabs)
         
         # Tabs
+        self.online_users_tab = OnlineUsersWidget()
         self.blacklist_tab = RulesWidget("blacklist")
         self.whitelist_tab = RulesWidget("whitelist")
         self.logs_tab = AccessLogsWidget()
         self.local_log_tab = LocalLogWidget()
         
-        self.tabs.addTab(self.blacklist_tab, "Blacklist (Block)")
-        self.tabs.addTab(self.whitelist_tab, "Whitelist (Allow)")
-        self.tabs.addTab(self.logs_tab, "Access Logs")
-        self.tabs.addTab(self.local_log_tab, "Operation Logs")
+        self.tabs.addTab(self.online_users_tab, "在线用户 (Online)")
+        self.tabs.addTab(self.blacklist_tab, "黑名单 (Blacklist)")
+        self.tabs.addTab(self.whitelist_tab, "白名单 (Whitelist)")
+        self.tabs.addTab(self.logs_tab, "访问日志 (Access Logs)")
+        self.tabs.addTab(self.local_log_tab, "操作日志 (Local Logs)")
         
         # Legacy Server Manager Tab
         self.server_tab = QWidget()
         v = QVBoxLayout(self.server_tab)
-        lbl = QLabel("Manage Server List using legacy SSH tool")
+        lbl = QLabel("请使用旧版SSH工具管理服务器列表节点")
         lbl.setAlignment(Qt.AlignCenter)
-        btn = QPushButton("Open Server Manager")
+        btn = QPushButton("打开服务器列表管理器")
         btn.clicked.connect(self.open_server_manager)
         v.addWidget(lbl)
         v.addWidget(btn)
-        self.tabs.addTab(self.server_tab, "Server Nodes (SSH)")
+        self.tabs.addTab(self.server_tab, "节点管理 (Nodes)")
         
         # Initial Refresh
         self.blacklist_tab.refresh()
         self.whitelist_tab.refresh()
+        self.online_users_tab.refresh()
         
     def open_server_manager(self):
         dialog = ServerManagementDialog(self)

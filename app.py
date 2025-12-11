@@ -1,6 +1,5 @@
 import sys
 import signal
-import argparse
 import logging
 import atexit
 from PySide6.QtWidgets import QApplication, QMessageBox
@@ -9,7 +8,6 @@ from PySide6.QtCore import QLockFile, QDir
 from src.core.ServerManager import ServerManager
 from src.core.ConfigManager import ConfigManager
 from src.gui.MainWindow import PortMappingApp
-from src.cli.runner import run_cli
 from src.utils.UpdaterManager import UpdaterManager
 from src.version import VERSION, GIT_HASH, get_version_string
 
@@ -28,14 +26,6 @@ def cleanup():
     except Exception:
         pass
 
-def parse_args(server_choices):
-    """Parses command-line arguments."""
-    parser = argparse.ArgumentParser(description="Minecraft Port Mapping Tool")
-    parser.add_argument('--local_port', type=str, help="Local port number (1-65535)")
-    parser.add_argument('--auto-find', action='store_true', help="Prioritize auto-finding Minecraft LAN port")
-    parser.add_argument('--server', type=str, choices=server_choices, help="Server name")
-    return parser.parse_args()
-
 def main():
     """Main application entry point."""
     atexit.register(cleanup)
@@ -45,7 +35,10 @@ def main():
             if issubclass(exc_type, KeyboardInterrupt):
                 sys.__excepthook__(exc_type, exc_value, exc_traceback)
                 return
-            logger.critical("Uncaught exception", exc_info=(exc_type, exc_value, exc_traceback))
+            try:
+                logger.critical("Uncaught exception", exc_info=(exc_type, exc_value, exc_traceback))
+            except:
+                pass
             # 同时写入crash_log.txt以防日志模块未初始化
             try:
                 with open("crash_log.txt", "w", encoding="utf-8") as f:
@@ -73,15 +66,6 @@ def main():
         except Exception as e:
             # 提取失败不影响主程序运行
             logger.warning(f"Updater提取失败（不影响正常使用）: {e}")
-
-        # CLI 模式检查逻辑（略过单实例检查，因为CLI可能用于临时任务）
-        if len(sys.argv) > 1 and any(arg.startswith('--') for arg in sys.argv[1:]):
-            server_manager = ServerManager()
-            servers = server_manager.get_servers()
-            args = parse_args(servers.keys())
-            app = QApplication(sys.argv)
-            run_cli(servers, args)
-            sys.exit(0)
 
         app = QApplication(sys.argv)
         

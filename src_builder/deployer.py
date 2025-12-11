@@ -130,7 +130,18 @@ class Deployer:
                     print(f"Uploading {local_server_dir} to {remote_root}...")
                     upload_dir(local_server_dir, remote_root)
                 
-                # 2. Start the service
+                # 2. Install Dependencies
+                print("Installing dependencies...")
+                pip_cmd = "/root/MitaHillFRP-Server/.venv/bin/pip install -r /root/MitaHillFRP-Server/requirements.txt"
+                stdin, stdout, stderr = ssh.exec_command(pip_cmd)
+                exit_status = stdout.channel.recv_exit_status()
+                if exit_status != 0:
+                    err = stderr.read().decode().strip()
+                    print(f"⚠️ Warning: Dependency installation failed with code {exit_status}. ({err})")
+                else:
+                    print("OK: Dependencies installed.")
+
+                # 3. Start the service
                 print("Starting 'mapi' service...")
                 stdin, stdout, stderr = ssh.exec_command("systemctl start mapi")
                 exit_status = stdout.channel.recv_exit_status()

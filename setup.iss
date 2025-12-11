@@ -37,8 +37,9 @@ SetupIconFile=base\logo.ico
 ; 压缩配置（暂时使用较低压缩以避免文件锁定问题）
 Compression=lzma2/ultra64
 SolidCompression=yes
-; LZMAUseSeparateProcess=yes
-; LZMANumBlockThreads=4
+LZMAUseSeparateProcess=yes
+CompressionThreads=auto
+LZMANumBlockThreads=8
 
 ; 界面配置
 WizardStyle=modern

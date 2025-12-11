@@ -10,6 +10,7 @@ from src.utils.PortGenerator import gen_port
 from src.gui.main_window.Threads import wait_for_thread
 from src.gui.styles import STYLE
 from src.network.HeartbeatManager import HeartbeatManager
+from src.network.TunnelMonitor import TunnelMonitor
 
 def set_port(window, port):
     """当检测到端口时，设置端口并触发自动映射"""
@@ -137,6 +138,23 @@ def on_mapping_success(window):
     # 自动复制到剪贴板
     QApplication.clipboard().setText(window.link)
     log_message(window, "映射地址已自动复制到剪贴板", "green")
+
+    # ---------------------------------------------------------
+    # 启动通用隧道监控 (Tunnel Monitor) - 必须启动
+    # ---------------------------------------------------------
+    server_addr = window._current_mapping["host"]
+    remote_port = window._current_mapping['remote_port']
+    
+    # 停止旧的监控（如果有）
+    if hasattr(window, "tunnel_monitor") and window.tunnel_monitor:
+        window.tunnel_monitor.stop()
+        
+    window.tunnel_monitor = TunnelMonitor(server_addr, remote_port)
+    # 连接停止信号 -> 触发停止逻辑 (线程安全)
+    window.tunnel_monitor.stop_mapping_signal.connect(
+        lambda reason: _stop_mapping_due_to_validation_failure(window, reason)
+    )
+    window.tunnel_monitor.start()
 
     # 若为特殊节点，启动双重心跳
     try:

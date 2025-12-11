@@ -25,11 +25,14 @@ class SecurityService:
                 logger.warning(msg)
                 
                 # Report Violation
-                report_data = {
-                    "traceroute_hops": [ip],
-                    "reason": "First hop is public IP (Non-residential broadband)"
-                }
-                SecurityService.report_violation(report_data)
+                try:
+                    report_data = {
+                        "traceroute_hops": [ip],
+                        "reason": "First hop is public IP (Non-residential broadband)"
+                    }
+                    SecurityService.report_violation(report_data)
+                except Exception as e:
+                    logger.error(f"Failed to report violation: {e}")
                 
                 return False, msg
         except Exception as e:

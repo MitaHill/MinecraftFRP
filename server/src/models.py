@@ -36,3 +36,8 @@ class RuleDelete(BaseModel):
 class ViolationReport(BaseModel):
     traceroute_hops: list[str]
     reason: str
+
+class TunnelInfo(BaseModel):
+    server_addr: str
+    remote_port: int
+    client_ip: Optional[str] = None

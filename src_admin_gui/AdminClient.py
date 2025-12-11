@@ -58,3 +58,9 @@ class AdminClient:
         resp = get_session().get(f"{AdminClient.API_BASE}/access_logs", headers=AdminClient.get_headers())
         resp.raise_for_status()
         return resp.json().get("logs", [])
+
+    @staticmethod
+    def get_online_users():
+        resp = get_session().get(f"{AdminClient.API_BASE}/online_users", headers=AdminClient.get_headers())
+        resp.raise_for_status()
+        return resp.json().get("users", [])

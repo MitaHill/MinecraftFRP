@@ -1,15 +1,15 @@
 from fastapi import FastAPI, Request, HTTPException, BackgroundTasks, Header, Depends
 from contextlib import asynccontextmanager
 import asyncio
-from typing import List
+from typing import List, Optional
 from datetime import datetime
-from .models import RoomCreate, RoomDelete, RuleCreate, RuleDelete, ViolationReport
+from .models import RoomCreate, RoomDelete, RuleCreate, RuleDelete, ViolationReport, TunnelInfo
 from .database import (init_db, upsert_room, delete_room, get_rooms, cleanup_stale_rooms, 
                        check_ip_conflict, update_room_status, update_online_heartbeat, 
                        get_online_count, cleanup_offline_users,
                        add_blacklist_rule, remove_blacklist_rule, get_blacklist_rules,
                        add_whitelist_rule, remove_whitelist_rule, get_whitelist_rules,
-                       get_access_logs)
+                       get_access_logs, upsert_tunnel, cleanup_stale_tunnels, get_active_tunnels)
 from .utils import get_effective_ip, mask_ip
 from .logger import logger
 from .security import RateLimitMiddleware
@@ -27,13 +27,20 @@ async def cleanup_task():
     while True:
         try:
             # 每60秒清理一次超时10秒的房间（与 database 默认值一致）
-            deleted = cleanup_stale_rooms(timeout_seconds=10)
-            if deleted > 0:
-                logger.info(f"Cleaned up {deleted} stale rooms")
+            deleted_rooms = cleanup_stale_rooms(timeout_seconds=10)
+            if deleted_rooms > 0:
+                logger.info(f"Cleaned up {deleted_rooms} stale rooms")
+            
             # 清理超时的在线用户（15秒超时）
             offline = cleanup_offline_users(timeout_seconds=15)
             if offline > 0:
                 logger.info(f"Cleaned up {offline} offline users")
+                
+            # 清理超时的隧道（40秒超时）
+            deleted_tunnels = cleanup_stale_tunnels(timeout_seconds=40)
+            if deleted_tunnels > 0:
+                logger.info(f"Cleaned up {deleted_tunnels} stale tunnels")
+                
         except Exception as e:
             logger.error(f"Cleanup error: {e}")
         await asyncio.sleep(60)
@@ -96,6 +103,20 @@ async def audit_room_task(host: str, port: int, full_room_code: str, remote_port
     except Exception as e:
         logger.error(f"Audit task failed for {full_room_code}: {e}")
 
+async def robust_get_server_status(host: str, port: int, retries: int = 5) -> Optional[dict]:
+    """
+    Robust server status check with retries.
+    Retries up to 5 times with short intervals to handle network congestion.
+    """
+    for i in range(retries):
+        # Use a short timeout (2s) to keep total time reasonable
+        status = await get_server_status(host, port, timeout=2.0)
+        if status:
+            return status
+        # Wait a bit before retry (exponential backoff or constant)
+        await asyncio.sleep(0.5)
+    return None
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # 启动时初始化数据库
@@ -125,6 +146,38 @@ app = FastAPI(lifespan=lifespan)
 # 注册限流中间件：每IP每分钟限制60次请求
 app.add_middleware(RateLimitMiddleware, limit=60, window=60)
 
+@app.post("/api/tunnel/validate")
+async def validate_tunnel(tunnel: TunnelInfo, request: Request):
+    """
+    Validate a generic tunnel (mapping).
+    Client sends heartbeat here. Server performs robust check.
+    If check fails multiple times (handled by robust_get_server_status), 
+    commands client to stop.
+    """
+    client_ip = get_effective_ip(request)
+    
+    # Perform robust check (5 retries)
+    status = await robust_get_server_status(tunnel.server_addr, tunnel.remote_port)
+    
+    if not status:
+        logger.warning(f"Tunnel validation failed for {client_ip} -> {tunnel.server_addr}:{tunnel.remote_port}")
+        return {
+            "success": False, 
+            "command": "stop", 
+            "reason": "Server validation failed (unstable connection or invalid server)"
+        }
+    
+    # Validation passed: Update tunnel heartbeat
+    try:
+        upsert_tunnel(client_ip, tunnel.server_addr, tunnel.remote_port)
+    except Exception as e:
+        logger.error(f"Failed to upsert tunnel: {e}")
+
+    return {
+        "success": True, 
+        "command": "keep-alive"
+    }
+
 @app.post("/api/lobby/rooms")
 async def create_or_update_room(room: RoomCreate, request: Request, background_tasks: BackgroundTasks):
     """创建或更新房间信息 (心跳)"""
@@ -151,8 +204,8 @@ async def create_or_update_room(room: RoomCreate, request: Request, background_t
         logger.warning(f"Blocked sensitive content from {client_ip}: '{bad_word}' in description")
         return {"success": False, "message": f"简介包含敏感词: {bad_word}"}
 
-    # Minecraft 服务器可访问性验证
-    status = await get_server_status(room.server_addr, room.remote_port)
+    # Minecraft 服务器可访问性验证 (Robust Check)
+    status = await robust_get_server_status(room.server_addr, room.remote_port)
     if not status:
         logger.warning(f"Validation failed for {room.server_addr}:{room.remote_port}. Not a valid Minecraft server.")
         return {"success": False, "message": "Validation failed"}
@@ -243,6 +296,11 @@ async def root():
 @app.get("/api/admin/access_logs", dependencies=[Depends(verify_admin)])
 async def api_get_access_logs():
     return {"success": True, "logs": get_access_logs()}
+
+@app.get("/api/admin/online_users", dependencies=[Depends(verify_admin)])
+async def api_get_online_users():
+    """获取所有活跃隧道（在线用户）信息"""
+    return {"success": True, "users": get_active_tunnels()}
 
 @app.get("/api/admin/blacklist", dependencies=[Depends(verify_admin)])
 async def api_get_blacklist():

@@ -20,6 +20,10 @@ def handle_close_event(window, event):
 def stop_all_threads(window):
     """优雅地停止所有后台线程"""
     with QMutexLocker(window.app_mutex):
+        # 停止滚动广告定时器
+        if hasattr(window, 'scrolling_ad_timer'):
+            window.scrolling_ad_timer.stop()
+
         # 停止 frpc 线程
         if window.th and window.th.isRunning():
             window.log("正在关闭frpc进程...", "orange")
@@ -35,3 +39,33 @@ def stop_all_threads(window):
         if hasattr(window, 'log_trimmer') and window.log_trimmer and window.log_trimmer.isRunning():
             window.log_trimmer.stop()
             window.log_trimmer.wait()
+            
+        # 停止其他后台线程
+        threads_to_stop = [
+            'server_update_thread',
+            'update_checker_thread',
+            'download_thread',
+            'ping_thread',
+            'ad_thread',
+            'tunnel_monitor'
+        ]
+        
+        # 优先处理 SecurityCheckThread，必须等待其自然结束
+        if hasattr(window, 'security_check_thread'):
+            thread = window.security_check_thread
+            if thread and thread.isRunning():
+                window.log("等待安全检查完成...", "orange")
+                thread.wait() # 无限等待，直到线程结束
+        
+        for thread_name in threads_to_stop:
+            if hasattr(window, thread_name):
+                thread = getattr(window, thread_name)
+                if thread and thread.isRunning():
+                    # 大多数QThread子类默认没有stop方法，使用terminate不安全，wait即可
+                    # 如果有特定的stop方法（如ServerUpdateThread），应该调用它
+                    # 这里尝试通用处理：如果有stop则调用，否则等待
+                    if hasattr(thread, 'stop') and callable(thread.stop):
+                        thread.stop()
+                    thread.wait(2000) # 最多等待2秒
+                    if thread.isRunning():
+                        thread.terminate() # 强制终止（防止挂起关闭流程）

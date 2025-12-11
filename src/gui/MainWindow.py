@@ -87,18 +87,25 @@ class PortMappingApp(QWidget):
         """Deferred initialization: executes heavy tasks after the window is shown."""
         logger.info("Performing deferred initialization...")
         
-        # Start Security Check
+        # 1. 立即继续初始化 UI，不阻塞用户
+        self.continue_initialization()
+
+        # 2. 启动后台安全检查 ("秋后算账"模式)
         self.security_check_thread = SecurityCheckThread()
+        # 只需要监听完成信号，根据结果决定是否"算账"
         self.security_check_thread.check_finished.connect(self.on_security_check_finished)
         self.security_check_thread.start()
         
     def on_security_check_finished(self, passed, reason):
+        """安全检查结束回调"""
         if not passed:
-             QMessageBox.critical(self, "安全警告", reason)
+             # 秋后算账：检查不通过，弹出致命错误并退出
+             logger.warning(f"Security check failed: {reason}")
+             QMessageBox.critical(self, "安全警告", f"安全检查未通过，程序将退出。\n\n原因: {reason}")
              self.close()
              return
-             
-        self.continue_initialization()
+        
+        logger.info("Background security check passed.")
 
     def continue_initialization(self):
         # Log version information

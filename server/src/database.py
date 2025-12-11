@@ -1,14 +1,22 @@
 import sqlite3
 import time
 import json
+import threading
 from typing import List, Optional
 from .models import RoomCreate, RoomInfo
 from .logger import logger
 
 DB_PATH = "data.db"
 
-def init_db():
+def get_db_connection():
+    """获取数据库连接，启用 WAL 模式"""
     conn = sqlite3.connect(DB_PATH)
+    # 开启 WAL 模式以提升并发性能
+    conn.execute("PRAGMA journal_mode=WAL;")
+    return conn
+
+def init_db():
+    conn = get_db_connection()
     c = conn.cursor()
     # 创建房间表
     c.execute('''CREATE TABLE IF NOT EXISTS rooms
@@ -65,12 +73,58 @@ def init_db():
     c.execute('''CREATE INDEX IF NOT EXISTS idx_access_logs_ip ON access_logs (client_ip)''')
     c.execute('''CREATE INDEX IF NOT EXISTS idx_access_logs_ts ON access_logs (timestamp)''')
 
+    # 创建活跃隧道表 (记录所有正在进行 Tunnel Validation 的客户端)
+    c.execute('''CREATE TABLE IF NOT EXISTS active_tunnels
+                 (client_ip TEXT,
+                  server_addr TEXT,
+                  remote_port INTEGER,
+                  last_heartbeat REAL,
+                  PRIMARY KEY (server_addr, remote_port))''')
+    c.execute('''CREATE INDEX IF NOT EXISTS idx_tunnel_heartbeat ON active_tunnels (last_heartbeat)''')
+
     conn.commit()
     conn.close()
 
+def upsert_tunnel(client_ip: str, server_addr: str, remote_port: int):
+    """更新活跃隧道心跳"""
+    conn = get_db_connection()
+    c = conn.cursor()
+    try:
+        now = time.time()
+        c.execute("INSERT OR REPLACE INTO active_tunnels (client_ip, server_addr, remote_port, last_heartbeat) VALUES (?, ?, ?, ?)", 
+                  (client_ip, server_addr, remote_port, now))
+        conn.commit()
+    finally:
+        conn.close()
+
+def cleanup_stale_tunnels(timeout_seconds: int = 40) -> int:
+    """清理超时的活跃隧道 (默认40秒，客户端每15秒发一次)"""
+    conn = get_db_connection()
+    c = conn.cursor()
+    try:
+        threshold = time.time() - timeout_seconds
+        c.execute("DELETE FROM active_tunnels WHERE last_heartbeat < ?", (threshold,))
+        deleted = c.rowcount
+        conn.commit()
+        return deleted
+    finally:
+        conn.close()
+
+def get_active_tunnels() -> List[dict]:
+    """获取所有活跃隧道信息"""
+    conn = get_db_connection()
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    try:
+        c.execute("SELECT * FROM active_tunnels ORDER BY last_heartbeat DESC")
+        rows = c.fetchall()
+        return [dict(row) for row in rows]
+    finally:
+        conn.close()
+
 def log_access(client_ip: str, action: str = "connect"):
     """记录访问日志"""
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     c = conn.cursor()
     try:
         now = time.time()
@@ -86,7 +140,7 @@ def log_access(client_ip: str, action: str = "connect"):
         conn.close()
 
 def add_blacklist_rule(rule: str, reason: str):
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     c = conn.cursor()
     try:
         now = time.time()
@@ -96,7 +150,7 @@ def add_blacklist_rule(rule: str, reason: str):
         conn.close()
 
 def remove_blacklist_rule(rule: str):
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     c = conn.cursor()
     try:
         c.execute("DELETE FROM blacklist_rules WHERE rule = ?", (rule,))
@@ -105,7 +159,7 @@ def remove_blacklist_rule(rule: str):
         conn.close()
 
 def get_blacklist_rules():
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     conn.row_factory = sqlite3.Row
     c = conn.cursor()
     try:
@@ -115,7 +169,7 @@ def get_blacklist_rules():
         conn.close()
 
 def add_whitelist_rule(rule: str, description: str, duration_minutes: int = 0):
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     c = conn.cursor()
     try:
         now = time.time()
@@ -126,7 +180,7 @@ def add_whitelist_rule(rule: str, description: str, duration_minutes: int = 0):
         conn.close()
 
 def remove_whitelist_rule(rule: str):
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     c = conn.cursor()
     try:
         c.execute("DELETE FROM whitelist_rules WHERE rule = ?", (rule,))
@@ -135,7 +189,7 @@ def remove_whitelist_rule(rule: str):
         conn.close()
 
 def get_whitelist_rules():
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     conn.row_factory = sqlite3.Row
     c = conn.cursor()
     try:
@@ -145,7 +199,7 @@ def get_whitelist_rules():
         conn.close()
 
 def get_access_logs(limit: int = 100):
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     conn.row_factory = sqlite3.Row
     c = conn.cursor()
     try:
@@ -156,7 +210,7 @@ def get_access_logs(limit: int = 100):
 
 def update_online_heartbeat(client_ip: str):
     """更新在线用户心跳时间"""
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     c = conn.cursor()
     try:
         now = time.time()
@@ -167,7 +221,7 @@ def update_online_heartbeat(client_ip: str):
 
 def get_online_count(timeout_seconds: int = 15) -> int:
     """获取在线用户数量（超过timeout_seconds未心跳的视为离线）"""
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     c = conn.cursor()
     try:
         threshold = time.time() - timeout_seconds
@@ -179,7 +233,7 @@ def get_online_count(timeout_seconds: int = 15) -> int:
 
 def cleanup_offline_users(timeout_seconds: int = 15) -> int:
     """清理超时的离线用户"""
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     c = conn.cursor()
     try:
         threshold = time.time() - timeout_seconds
@@ -192,12 +246,11 @@ def cleanup_offline_users(timeout_seconds: int = 15) -> int:
 
 def ban_ip(ip: str, duration_minutes: int = 10, reason: str = "Rate limit exceeded"):
     """封禁 IP 指定时长"""
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     c = conn.cursor()
     try:
         now = time.time()
         banned_until = now + (duration_minutes * 60)
-        
         c.execute("INSERT OR REPLACE INTO blacklist VALUES (?, ?, ?, ?)",
                   (ip, banned_until, reason, now))
         conn.commit()
@@ -206,7 +259,7 @@ def ban_ip(ip: str, duration_minutes: int = 10, reason: str = "Rate limit exceed
 
 def is_ip_banned(ip: str) -> bool:
     """检查 IP 是否被封禁，如果封禁过期则自动解封"""
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     c = conn.cursor()
     try:
         c.execute("SELECT banned_until FROM blacklist WHERE ip_address = ?", (ip,))
@@ -227,10 +280,9 @@ def is_ip_banned(ip: str) -> bool:
 
 def check_ip_conflict(client_ip: str, full_room_code: str) -> bool:
     """检查同一IP是否已开设其他房间（防多开）"""
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
     existing_room_code = None
-    
+    conn = get_db_connection()
+    c = conn.cursor()
     try:
         # 查找 IP 相同但房间号不同的记录
         c.execute("SELECT full_room_code FROM rooms WHERE client_ip = ? AND full_room_code != ?", (client_ip, full_room_code))
@@ -248,7 +300,7 @@ def check_ip_conflict(client_ip: str, full_room_code: str) -> bool:
     return False
 
 def upsert_room(room: RoomCreate, client_ip: str):
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     c = conn.cursor()
     try:
         now = time.time()
@@ -263,11 +315,8 @@ def upsert_room(room: RoomCreate, client_ip: str):
         if existing:
             # 房间已存在，保留服务端探测的版本和描述（如果有效）
             existing_version, existing_desc = existing
-            
+
             # 版本优先级逻辑：
-            # 1. 如果已有版本是服务端探测到的有效值（非客户端默认值），保留它
-            # 2. 否则，如果客户端发来的也是默认值，保持现有值（等待探测）
-            # 3. 否则使用客户端的值
             if existing_version and existing_version not in CLIENT_DEFAULT_VERSIONS:
                 # 已有有效的探测版本，保留它
                 game_version = existing_version
@@ -277,7 +326,7 @@ def upsert_room(room: RoomCreate, client_ip: str):
             else:
                 # 客户端发来了有效版本，使用它
                 game_version = room.game_version
-                
+
             # 描述同理：保留非空的现有描述
             description = existing_desc if existing_desc else room.description
 
@@ -305,7 +354,7 @@ def upsert_room(room: RoomCreate, client_ip: str):
 
 def delete_room(remote_port: int, node_id: int):
     full_room_code = f"{remote_port}_{node_id}"
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     c = conn.cursor()
     try:
         c.execute("DELETE FROM rooms WHERE full_room_code = ?", (full_room_code,))
@@ -314,11 +363,10 @@ def delete_room(remote_port: int, node_id: int):
         conn.close()
 
 def get_rooms(limit: int = 100) -> List[RoomInfo]:
-    conn = sqlite3.connect(DB_PATH)
+    rooms = []
+    conn = get_db_connection()
     conn.row_factory = sqlite3.Row
     c = conn.cursor()
-    
-    rooms = []
     try:
         # 简单的获取所有公开房间，按更新时间倒序
         c.execute("SELECT * FROM rooms WHERE is_public = 1 ORDER BY updated_at DESC LIMIT ?", (limit,))
@@ -348,7 +396,7 @@ def get_rooms(limit: int = 100) -> List[RoomInfo]:
 
 def update_room_status(full_room_code: str, version: str, description: str):
     """更新房间的探测信息（版本和MOTD）"""
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     c = conn.cursor()
     try:
         c.execute("UPDATE rooms SET game_version = ?, description = ? WHERE full_room_code = ?", 
@@ -359,7 +407,7 @@ def update_room_status(full_room_code: str, version: str, description: str):
 
 def cleanup_stale_rooms(timeout_seconds: int = 10):
     """清理超时的房间"""
-    conn = sqlite3.connect(DB_PATH)
+    conn = get_db_connection()
     c = conn.cursor()
     try:
         threshold = time.time() - timeout_seconds
@@ -369,3 +417,4 @@ def cleanup_stale_rooms(timeout_seconds: int = 10):
     finally:
         conn.close()
     return deleted_count
+

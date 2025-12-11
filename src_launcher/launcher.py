@@ -148,6 +148,12 @@ def _download_installer(url: str, version: str, channel: str) -> Path:
             _safe_log("remote version missing installer_url; skip update")
             return Path()
         
+        # 开始下载前提示
+        try:
+            _show_toast(f"正在开始下载更新包 (v{version})，请稍候...", silent=True)
+        except:
+            pass
+
         # 开始下载
         with requests.get(url, stream=True, timeout=30) as r:
             r.raise_for_status()

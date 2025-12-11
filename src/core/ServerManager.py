@@ -1,5 +1,6 @@
 import json
 import os
+import threading
 from pathlib import Path
 from typing import Dict, Tuple, Optional
 from src.network.PingUtils import download_json, read_json_file
@@ -24,6 +25,7 @@ class ServerManager:
         k_part1 = "clash"
         k_part2 = "man"
         self.key = k_part1 + k_part2
+        self.lock = threading.Lock() # 线程锁
         
         # 确保配置目录存在
         try:
@@ -32,12 +34,16 @@ class ServerManager:
             pass
 
         # 首先加载内置的，然后尝试从本地文件覆盖
-        self.servers = self._load_default_servers()
-        self._load_servers_from_local()
-        self._merge_special_nodes()
+        # 初始化时是单线程环境，可以不用锁，但为了保险起见还是加上
+        with self.lock:
+            self.servers = self._load_default_servers()
+            # _load_servers_from_local 和 _merge_special_nodes 可能会修改 self.servers
+            # 但我们在 __init__ 内部直接调用，这里锁一次即可
+            self._load_servers_from_local_internal()
+            self._merge_special_nodes_internal()
 
-    def _merge_special_nodes(self) -> None:
-        """确保特殊节点始终存在于服务器列表中，并位于末尾（展示在底部）。"""
+    def _merge_special_nodes_internal(self) -> None:
+        """内部方法：合并特殊节点（不加锁，供内部调用）"""
         try:
             # 优先从文档目录读取
             path = CONFIG_DIR / "special_nodes.json"
@@ -52,6 +58,11 @@ class ServerManager:
         except Exception as e:
             logger.error(f"加载特殊节点失败: {e}")
 
+    def _merge_special_nodes(self) -> None:
+        """确保特殊节点始终存在于服务器列表中，并位于末尾（展示在底部）。(加锁版)"""
+        with self.lock:
+            self._merge_special_nodes_internal()
+
     def _load_default_servers(self) -> Dict[str, Tuple[str, int, str]]:
         """加载并解密内置的默认服务器列表"""
         try:
@@ -63,8 +74,8 @@ class ServerManager:
             logger.error(f"无法加载内置服务器列表: {e}")
         return {}
 
-    def _load_servers_from_local(self) -> None:
-        """从本地文件加载服务器列表，不进行网络下载"""
+    def _load_servers_from_local_internal(self) -> None:
+        """内部方法：从本地文件加载服务器列表（不加锁）"""
         local_path = CONFIG_DIR / "frp-server-list.json"
         # read_json_file 支持 Path 对象或字符串
         encrypted_data = read_json_file(str(local_path))
@@ -82,6 +93,11 @@ class ServerManager:
                     logger.info("已从本地文件加载服务器列表。")
         except Exception as e:
             logger.error(f"从本地文件加载服务器列表失败: {e}，将使用内置列表。")
+
+    def _load_servers_from_local(self) -> None:
+        """从本地文件加载服务器列表，不进行网络下载"""
+        with self.lock:
+            self._load_servers_from_local_internal()
 
     def update_servers_from_network(self) -> Optional[Dict[str, Tuple[str, int, str]]]:
         """从网络下载并更新服务器列表，返回新的服务器字典"""
@@ -101,14 +117,16 @@ class ServerManager:
                     json_data = json.loads(decrypted_data)
                     servers = load_servers_from_json(json_data)
                     if servers:
-                        self.servers = servers
-                        self._merge_special_nodes()
+                        with self.lock:
+                            self.servers = servers
+                            self._merge_special_nodes_internal()
                         logger.info("成功从网络更新并加载服务器列表。")
-                        return self.servers
+                        return self.get_servers() # 返回线程安全的副本
             except Exception as e:
                 logger.error(f"解析下载的服务器列表失败: {e}")
 
         return None
 
     def get_servers(self) -> Dict[str, Tuple[str, int, str]]:
-        return self.servers
+        with self.lock:
+            return self.servers.copy()

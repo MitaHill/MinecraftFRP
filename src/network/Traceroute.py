@@ -36,13 +36,13 @@ def get_first_hop_ip() -> str:
     target = "110.242.68.3" 
     try:
         if platform.system().lower() == "windows":
-            # -d: no dns, -h 1: max 1 hop, -w 1000: timeout 1s
-            cmd = ["tracert", "-d", "-h", "1", "-w", "1000", target]
-            # Use cp437 or valid encoding for windows console
-            encoding = "cp437"
+            # -d: no dns, -h 1: max 1 hop, -w 2000: timeout 2s per hop
+            cmd = ["tracert", "-d", "-h", "1", "-w", "2000", target]
+            # Use default system encoding (likely cp936 on CN Windows), rely on Python's auto-detection
+            encoding = None 
         else:
             # Linux/Mac
-            cmd = ["traceroute", "-n", "-m", "1", "-w", "1", target]
+            cmd = ["traceroute", "-n", "-m", "1", "-w", "2", target]
             encoding = "utf-8"
 
         # Create subprocess, hide window on Windows
@@ -59,10 +59,26 @@ def get_first_hop_ip() -> str:
             startupinfo=startupinfo,
             text=True,
             encoding=encoding,
-            errors='ignore'
+            errors='replace' # More robust than ignore
         )
-        stdout, _ = process.communicate()
-        
+        try:
+            # Increase total timeout to 60s to be safe, though 1 hop should be fast
+            stdout, _ = process.communicate(timeout=60)
+        except subprocess.TimeoutExpired:
+            try:
+                process.kill()
+            except Exception:
+                pass
+            logger.warning("Traceroute command timed out.")
+            return None
+        except Exception as e:
+            logger.error(f"Traceroute communication error: {e}")
+            try:
+                process.kill()
+            except Exception:
+                pass
+            return None
+            
         # Parse output
         # Windows: "  1    <1 ms    <1 ms    <1 ms  192.168.1.1"
         # Linux: " 1  192.168.1.1  0.123 ms"

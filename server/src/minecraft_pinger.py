@@ -3,6 +3,16 @@ from typing import Optional, Dict
 from mcstatus import JavaServer
 from .logger import logger
 
+async def get_server_motd(host: str, port: int) -> Optional[str]:
+    """
+    异步获取 Minecraft Java 版服务器的 MOTD。
+    如果连接失败或超时，返回 None。
+    """
+    status = await get_server_status(host, port)
+    if status:
+        return status.get("description")
+    return None
+
 async def get_server_status(host: str, port: int) -> Optional[Dict[str, str]]:
     """
     异步获取 Minecraft Java 版服务器的状态（MOTD 和 版本）。

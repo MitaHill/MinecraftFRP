@@ -11,7 +11,17 @@
 你的每一次代码生成都将直接影响项目的整体质量和可维护性，请务必认真对待每一个细节，严格按照文档要求进行编码。
 感谢你的理解与配合！
 以及请使用**简体中文**语言和用户进行对话沟通，以确保信息传达的准确性和一致性。
+
+### 重要规范：
+
 *   **交互式脚本**: AI助手不应尝试执行需要用户输入的交互式脚本（如 `build.py`）。应当等待用户手动执行，并根据用户提供的结果或反馈来继续下一步工作。
+
+*   **🚫 禁止使用 BAT/CMD/PowerShell 脚本**: 
+    - **所有自动化脚本必须使用 Python 编写**
+    - 禁止创建 `.bat` / `.cmd` / `.ps1` 文件
+    - 原因：跨平台兼容性差、编码问题频发（PowerShell 中文乱码）、难以维护
+    - 例外：仅允许使用 Python 的 `subprocess` 模块调用系统命令
+    - 正确做法：将所有脚本逻辑封装为 Python 函数或模块
 
 ## 2. 技术栈
 - **编程语言**: Python 3.8+
@@ -24,9 +34,9 @@
 
 ## 2.5 架构版本说明
 
-### v2.0 架构 (当前) - Inno Setup 专业安装器
+### 安装器架构 (当前) - Inno Setup 专业安装器
 
-从 v2.0 开始，项目进行了**彻底重构**，采用 **Inno Setup** 专业安装程序，提供标准Windows软件安装体验。
+项目采用 **Inno Setup** 专业安装程序，提供标准Windows安装体验；统一为“目录模式”发布（非单文件），所有组件以“exe + 子目录”形态交付。
 
 ---
 
@@ -55,6 +65,41 @@ AppId: {8B5F6C3D-9E4A-4F2B-A1D3-7C8E9F0B1A2C}
 - 会导致注册表混乱和卸载问题
 
 **正确做法**：无论版本如何变化（0.5.32 → 0.6.0 → 1.0.0），**AppId 始终保持不变**。
+
+---
+
+#### 构建与发布目录结构：
+
+**构建过程：**
+```
+项目根目录/
+├── build/                         # 【构建缓存目录】所有中间产物和最终成品
+│   ├── temp_launcher/             # Launcher 编译缓存
+│   │   └── launcher.exe
+│   ├── temp_main_app/             # 主程序编译缓存
+│   │   └── app.dist/
+│   │       ├── MinecraftFRP.exe
+│   │       └── ... (478个文件)
+│   ├── MinecraftFRP_build/        # 组织好的构建产物（给 Inno Setup 用）
+│   │   ├── launcher.exe
+│   │   └── app.dist/
+│   └── installer_output/          # Inno Setup 输出目录
+│       └── MinecraftFRP_Setup_0.5.32.exe  # 【最终成品】
+│
+├── dist/                          # 【发布目录】按版本号存档
+│   └── 0.5.32/                    # 从 build/ 复制过来的成品
+│       ├── MinecraftFRP_Setup_0.5.32.exe
+│       ├── version.json           # 版本元数据
+│       └── CHANGELOG.md           # 版本更新日志
+│
+└── setup.iss                      # Inno Setup 配置脚本
+```
+
+**关键规则：**
+1. `build/` - 临时构建缓存，可随时删除重建
+2. `dist/版本号/` - 发布归档，每个版本独立存储
+3. 构建完成后，从 `build/installer_output/` 复制成品到 `dist/版本号/`
+4. 防病毒软件干扰 build/ 不影响已发布的 dist/
 
 ---
 
@@ -164,18 +209,15 @@ launcher.exe 启动
 
 ---
 
-#### v2.0 分发与部署：
+#### 分发与部署：
 
 **最终产物：**
 ```
 dist/
-├── MinecraftFRP_0.5.32_installer/
-│   └── MinecraftFRP_Setup_0.5.32.exe   # 【唯一分发文件】
-├── MinecraftFRP_build/                 # 构建中间产物
-│   ├── launcher.exe
-│   └── app.dist/
-└── minecraft_version_index/
-    └── version.json                    # 版本清单文件
+└── MinecraftFRP_<版本号>/
+    ├── MinecraftFRP_Setup_<版本号>.exe      # Stable 通道
+    ├── MinecraftFRP_installer_dev.exe       # Dev 通道
+    └── version.json
 ```
 
 **服务器部署：**
@@ -185,6 +227,51 @@ dist/
 **用户获取方式：**
 - **首次安装**：从官网/分发渠道下载 `MinecraftFRP_Setup_x.x.x.exe`
 - **后续更新**：手动下载新版安装包并运行（或等待方案二实现后自动更新）
+
+---
+
+#### 构建命令：
+
+统一入口（仅此一种）：
+```bash
+python build.py [--channel dev|stable] [--upload] [-u "更新说明"] [--clean]
+```
+
+该命令将：
+1. 清空 build/ 缓存（保留 dist/ 仅做最终归档）
+2. 编译 Launcher（Nuitka 目录模式，输出 launcher.dist/）
+3. 编译主程序（Nuitka 目录模式，输出 app.dist/）
+4. 组织文件到 build/MinecraftFRP_build/
+5. 使用 Inno Setup 打包到 build/installer_output/
+6. 将安装器复制到 dist/MinecraftFRP_<版本号>/ 并生成 version.json（按通道命名：dev 为 MinecraftFRP_installer_dev.exe）
+
+```
+build/                              # 构建缓存（可删除）
+├── temp_launcher/
+│   └── launcher.exe
+├── temp_main_app/
+│   └── app.dist/
+├── MinecraftFRP_build/             # 组织好给 Inno Setup 用
+│   ├── launcher.exe
+│   └── app.dist/
+└── installer_output/
+    └── MinecraftFRP_Setup_0.5.32.exe   # 安装程序
+
+dist/                               # 发布目录（永久保存）
+└── 0.5.32/
+    └── MinecraftFRP_Setup_0.5.32.exe   # 最终成品
+```
+
+**依赖要求：**
+- Inno Setup 6.6.1 (安装路径: `C:\Program Files (x86)\Inno Setup 6\`)
+- Python 3.8+
+- Nuitka 2.8.9
+- PySide6
+
+**常见问题：**
+1. **Inno Setup 报错"文件被占用"**：关闭所有资源管理器窗口，确保没有程序占用 build/ 目录
+2. **缺少语言文件**：已使用英语，中文需手动下载 `ChineseSimplified.isl`
+3. **防病毒软件干扰**：将项目目录添加到信任区
 
 ---
 
@@ -199,6 +286,20 @@ dist/
 ## 3. Git 工作流与规范 (严格执行)
 
 本项目采用严格的 Git 提交与分支管理规范，以确保代码库的整洁与可维护性。
+
+### 3.0 版本标记与构建前置命令（信息采集，仅参考）
+为确保 `version.json` 与安装器版本信息一致，构建前可以选择执行以下命令采集 Git 信息（不强制）：
+
+```powershell
+# 可选：查看当前分支与最近标签
+git rev-parse --abbrev-ref HEAD
+git tag --list
+```
+
+注意：
+- 构建脚本已取消所有 Git 写操作（不自动创建/推送标签），仅获取分支信息用于默认更新说明。
+- 构建缓存目录为 `build/`，发布目录为 `dist/MinecraftFRP_<版本号>/`，二者严格分离。
+- 构建成功后，安装器与 `version.json` 会复制到 `dist/MinecraftFRP_<版本号>/`，其中 Dev 通道安装器命名为 `MinecraftFRP_installer_dev.exe`。
 
 ### 3.1 分支管理策略
 *   **主分支 (`main`)**: 仅存放经过测试、稳定可运行的代码。
@@ -359,10 +460,9 @@ MinecraftFRP/
 ## 10. 打包与发布规范 (Packaging)
 
 ### 10.1 Nuitka 打包标准
-*   **编译目标**: Nuitka 将 Python 源码编译为C语言级别，以追求更高的性能和反逆向能力。
-*   **单文件发布**: 默认使用 `--onefile` 模式。
+*   **编译目标**: Nuitka 编译为“目录模式”（standalone，非 onefile），以便 `exe + 子目录` 的架构。
 *   **隐藏控制台**: GUI 程序必须使用 `--windows-disable-console` (或 `--disable-console`) 隐藏 CMD 窗口。
-*   **资源内置**: 所有外部依赖（如 `frpc.exe`, 图标文件等）必须通过 `--include-data-file` 或 `--include-data-dir` 等参数内置到 EXE 中。
+*   **资源内置/目录随附**: 外部依赖通过 `--include-data-file` / `--include-data-dir` 或随 `app.dist/`、`nuitka_launcher/` 目录分发。
 
 ### 10.2 路径解析
 *   **动态路径**: 代码中禁止使用硬编码的相对路径加载资源。
@@ -434,49 +534,38 @@ MinecraftFRP/
 本项目拥有一套基于 Python 的自动化构建与部署流水线，其核心是根目录下的 `build.py` 脚本。
 
 ### 12.1 核心组件
-*   **`build.py`**: 自动化主脚本，负责驱动整个流程。
+*   **`build.py`**: 自动化主脚本，负责驱动整个流程（仅 Python，禁止 BAT/CMD/PS1）。
 *   **`cicd.yaml`**: 流水线配置文件，用于定义版本号、部署目标服务器信息、打包参数等。
 
 ### 12.2 自动化流程
 运行 `python build.py` 后，脚本将自动执行以下端到端(End-to-End)任务：
-1.  **读取配置**: 解析 `cicd.yaml` 获取当前版本号和部署配置。
-2.  **Nuitka 编译**: 调用 Nuitka 将 `app.py` 打包为高性能的单文件可执行程序。
-3.  **版本化命名**: 根据当前版本号，将编译产物重命名（例如 `MinecraftFRP_0.5.0.exe`）。
-4.  **生成清单**:
-    *   自动计算可执行文件的 **SHA256** 哈希值，用于客户端安全校验。
-    *   自动获取当前的 **Git Commit Hash**。
-    *   将版本号、Git Hash、SHA256等信息组装成 `version.json` 文件。
-5.  **安全部署 (可选)**:
-    *   脚本会交互式地询问是否部署。
-    *   如果确认，会**安全地提示输入SSH密码**（密码仅在内存中，不保存）。
-    *   通过 SFTP 将编译好的 `.exe` 文件和 `version.json` 文件上传到`cicd.yaml`中指定的服务器路径。
-6.  **版本递增**: 部署成功或选择不部署后，脚本会自动将 `cicd.yaml` 中的补丁版本号加一，为下一次构建做准备。
+1.  **读取配置**: 解析 `cicd.yaml` 获取当前版本号和部署配置；每次构建版本号自增一次并写回。
+2.  **Nuitka 编译**: 以目录模式编译 `launcher.py` 与 `app.py`（非单文件），输出 `launcher.dist/` 与 `app.dist/`。
+3.  **组织产物**: 汇总到 `build/MinecraftFRP_build/`（launcher.exe + nuitka_launcher/ + app.dist/）。
+4.  **生成安装器**: 使用 Inno Setup 将上述目录打包输出到 `build/installer_output/`。
+5.  **生成清单**:
+    *   自动计算安装器的 **SHA256**。
+    *   获取当前 **Git 分支**（仅用于信息显示，不做写操作）。
+    *   将版本号、SHA256、分支信息与更新说明写入 `version.json` 文件。
+6.  **部署 (可选)**:
+    *   通过 SFTP 将安装器与 `version.json` 上传到服务器指定目录（按通道隔离：Stable/ 与 Dev/）。
+7.  **缓存清理**: 结束后清空 `build/` 目录，保留 `dist/` 归档。
 
 ### 12.3 如何使用
 确保已安装所有 `requirements.txt` 中的依赖后，在项目根目录的虚拟环境中执行：
 ```shell
-python build.py
+python build.py --channel dev            # 默认：开发通道
+python build.py --channel stable --upload -u "修复BUG"   # 正式发布并上传
 ```
 
-#### v2.0 架构构建说明
-从 v2.0 开始，构建流程支持新的 Inno Setup 安装器模式：
-
-```shell
-# 基本构建（自动启用 --fast）
-python build.py --v2
-
-# 构建并上传
-python build.py --v2 --upload
-
-# 清理后构建
-python build.py --v2 --clean
-```
+#### 构建说明（安装器模式）
+已取消 `--v2` 参数，统一使用 `build.py`，通过 `--channel` 指定通道。
 
 **构建阶段：**
 1. **Launcher 编译** (4-5分钟) - 使用 Nuitka onefile 模式
 2. **主应用编译** (4-5分钟) - 使用 Nuitka standalone 模式，生成 app.dist/
-3. **文件组织** (几秒) - 复制到 dist/MinecraftFRP_build/
-4. **Inno Setup 打包** (30秒) - 生成最终的 Setup.exe
+3. **文件组织** (几秒) - 复制到 build/MinecraftFRP_build/
+4. **Inno Setup 打包** (30秒) - 生成最终的 Setup.exe（输出到 build/installer_output/，随后复制到 dist/版本号/）
 
 **总耗时**: 约 10-12 分钟
 
@@ -997,3 +1086,22 @@ python build.py --skip-updater
   ```
 - 审计与风控：日志中同时记录 raw/effective IP；频控以 effective IP 为主、raw IP 为辅；
 - 时间戳：更新于 2025-12-09T19:06:16.291Z（预留反代控制协议与 SSL 终止场景支持）。
+
+版本文件 https://z.clash.ink/chfs/shared/MinecraftFRP/Data/version.json
+上传 /root/chfs/share/MinecraftFRP/Data/version.json
+
+下载通道
+
+DEV版本
+https://z.clash.ink/chfs/shared/MinecraftFRP/Dev/MitaHill_Dev_FRP.exe
+
+上传 /root/chfs/share/MinecraftFRP/Dev/MitaHill_Dev_FRP.exe
+
+STABLE版本
+https://z.clash.ink/chfs/shared/MinecraftFRP/Stable/MitaHill_Stable_FRP.exe
+
+上传 /root/chfs/share/Minecraft/Stable/MitaHill_Stable_FRP.exe
+
+版本文件只有一个，因为我不想两个版本分支相同维护。
+
+更新程序从服务器拉取更新索引文件 version.json ，和自身的版本通道进行比对，如果匹配，那么看版本号，如果服务器的版本号大于自身，则触发更新，从指定位置下载安装包，并安装

@@ -24,20 +24,45 @@ if sys.platform == 'win32':
         sys.stderr.reconfigure(encoding='utf-8')
 
 from src_builder.arg_parser import parse_arguments
-from src_builder.build_orchestrator import BuildOrchestrator
 from src_builder.v2_builder import V2Builder
 
 
 def main():
     """构建脚本主入口函数"""
     args = parse_arguments()
-    
-    # 根据参数选择构建器
-    if args.v2:
-        builder = V2Builder(args)
+
+    # 构建前置操作：自动清空 build/ 缓存并进行版本号自增
+    import shutil
+    from src_builder.config import BuildConfig
+    build_dir = os.path.join(os.getcwd(), 'build')
+    if os.path.isdir(build_dir):
+        print("[前置检查] 正在清空构建缓存目录: .\\build\\ ...")
+        # 仅清空内容，不删除 build 目录本身
+        for name in os.listdir(build_dir):
+            path = os.path.join(build_dir, name)
+            try:
+                if os.path.isdir(path):
+                    shutil.rmtree(path, ignore_errors=True)
+                else:
+                    os.remove(path)
+            except Exception as e:
+                print(f"[WARN] 清理 {path} 失败: {e}")
     else:
-        builder = BuildOrchestrator(args)
-    
+        print("[前置检查] 未检测到 .\\build\\ 目录，跳过清理。")
+
+    # 版本号自增（每次构建+1），并保存到 cicd.yaml
+    cfg = BuildConfig()
+    old_ver = cfg.get_version_string()
+    new_ver = cfg.increment_version()
+    if cfg.save_config():
+        print(f"[版本管理] 版本号自增: {old_ver} -> {new_ver}")
+    else:
+        print("[版本管理] ❌ 无法写入 cicd.yaml，已终止。")
+        sys.exit(1)
+
+    # 默认使用安装器架构的构建器
+    builder = V2Builder(args)
+
     exit_code = builder.run()
     sys.exit(exit_code)
 

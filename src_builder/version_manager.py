@@ -5,9 +5,9 @@ Version and release notes management.
 import os
 import json
 import subprocess
+import urllib.request
 from datetime import datetime
 from src.utils.Crypto import calculate_sha256
-from src.utils.HttpManager import fetch_url_content
 
 class VersionManager:
     """Manages version information and release notes."""
@@ -17,6 +17,16 @@ class VersionManager:
         self.git_hash = git_hash or self._get_git_hash()
         self.git_branch = git_branch or self._get_git_branch()
     
+    def _fetch_url(self, url):
+        """Simple URL fetcher to avoid dependency on app logging."""
+        try:
+            with urllib.request.urlopen(url, timeout=10) as response:
+                if response.status == 200:
+                    return response.read().decode('utf-8')
+        except Exception as e:
+            print(f"   [Debug] Fetch failed: {e}")
+        return None
+
     def _get_git_hash(self):
         """Get current Git commit hash."""
         try:
@@ -37,56 +47,31 @@ class VersionManager:
         except:
             return "unknown"
     
-    def generate_release_notes(self, version_url):
+    def generate_release_notes(self, version_url=None):
         """
-        Fetches commit messages from Git to generate release notes.
-        Prioritizes fetching the git_hash from the live version.json.
+        严格模式生成发布说明（仅本地仓库）：
+        - 不再依赖远程 version.json
+        - 使用本地 Git 标签确定范围：<last_tag>..HEAD
+        - 若找不到任何标签，则报错并提示如何创建标签
         """
-        print("\nINFO: Generating release notes from Git history...")
-        log_range = None
+        print("\nINFO: Generating release notes from local Git...")
         
-        # Primary: Fetch from live version.json
+        # 1) 获取最近的标签
         try:
-            print(f"INFO: Attempting to fetch live version info from {version_url}")
-            content = fetch_url_content(version_url, timeout=5)
-            live_version_data = json.loads(content)
-            server_git_hash = live_version_data.get("git_hash")
-            
-            if server_git_hash and server_git_hash != "unknown":
-                # 验证git_hash是否有效
-                try:
-                    subprocess.check_output(
-                        ['git', 'rev-parse', '--verify', server_git_hash],
-                        stderr=subprocess.DEVNULL
-                    )
-                    print(f"OK: Found valid server git_hash: {server_git_hash}")
-                    log_range = f"{server_git_hash}..HEAD"
-                except subprocess.CalledProcessError:
-                    print(f"WARNING: Server git_hash '{server_git_hash}' is invalid. Proceeding to fallback.")
-            else:
-                print("WARNING: 'git_hash' not found or is 'unknown' in live version.json. Proceeding to fallback.")
-                
-        except Exception as e:
-            print(f"WARNING: Could not fetch live version.json: {e}. Proceeding to fallback.")
-
-        # Fallback 1: Use latest Git tag
-        if not log_range:
-            try:
-                latest_tag = subprocess.check_output(
-                    ['git', 'describe', '--tags', '--abbrev=0'],
-                    stderr=subprocess.DEVNULL
-                ).decode('ascii').strip()
-                print(f"OK: Fallback - Found latest tag: {latest_tag}")
-                log_range = f"{latest_tag}..HEAD"
-            except subprocess.CalledProcessError:
-                print("WARNING: Fallback - No Git tags found.")
-
-        # Fallback 2: Use last 5 commits
-        if not log_range:
-            print("WARNING: Fallback - Using last 5 commits for release notes.")
-            log_range = "HEAD~5..HEAD"
-
-        # Generate commit messages
+            last_tag = subprocess.check_output(
+                ['git', 'describe', '--tags', '--abbrev=0'],
+                stderr=subprocess.DEVNULL
+            ).decode('utf-8').strip()
+        except subprocess.CalledProcessError:
+            raise RuntimeError(
+                "本地仓库未找到任何 Git 标签，无法确定发布说明范围。请创建一个标签，例如：\n"
+                "  git tag v0.5.31 && git push --tags\n"
+                "然后重试构建。"
+            )
+        
+        log_range = f"{last_tag}..HEAD"
+        
+        # 2) 生成提交信息
         try:
             print(f"INFO: Generating logs for range: '{log_range}'")
             commit_messages = subprocess.check_output(
@@ -95,18 +80,18 @@ class VersionManager:
             ).decode('utf-8').strip()
             
             if not commit_messages:
-                print("WARNING: No new commits found. Using default message.")
-                return "No new changes in this version."
-                
+                raise RuntimeError("指定范围内无提交记录，无法生成发布说明。")
+            
             print("OK: Successfully generated release notes.")
             return commit_messages
-            
         except Exception as e:
-            print(f"ERROR: Failed to generate release notes: {e}")
-            return "Failed to generate release notes."
+            raise RuntimeError(f"生成发布说明失败: {e}")
     
-    def create_version_json(self, exe_path, download_url, output_path, release_notes):
-        """Create version.json file with build metadata."""
+    def create_version_json(self, exe_path, download_url, output_path, release_notes, channel: str = "stable"):
+        """
+        Create version.json file with build metadata using download-merge-save strategy.
+        channel: 'dev' or 'stable'
+        """
         try:
             exe_sha256 = calculate_sha256(exe_path)
             exe_size = os.path.getsize(exe_path)
@@ -115,7 +100,8 @@ class VersionManager:
             print(f"✅ SHA256: {exe_sha256}")
             print(f"✅ Size: {exe_size_mb:.2f} MB")
             
-            version_data = {
+            # 1. 构造当前通道的数据
+            current_build_data = {
                 "version": self.version,
                 "git_hash": self.git_hash,
                 "git_branch": self.git_branch,
@@ -126,6 +112,35 @@ class VersionManager:
                 "size_bytes": exe_size
             }
             
+            # 2. 尝试获取线上现有的 version.json
+            remote_url = "https://z.clash.ink/chfs/shared/MinecraftFRP/Data/version.json"
+            print(f"🌍 Fetching existing version.json from {remote_url}...")
+            
+            final_data = {"channels": {}}
+            try:
+                existing_content = self._fetch_url(remote_url)
+                if existing_content:
+                    existing_json = json.loads(existing_content)
+                    # 检查是否为新结构
+                    if "channels" in existing_json:
+                        final_data = existing_json
+                    else:
+                        print("⚠️  Remote version.json is old format. Migrating to new structure.")
+                        final_data["legacy"] = existing_json
+                else:
+                    print("⚠️  Remote version.json not found or empty.")
+            except Exception as e:
+                print(f"⚠️  Could not fetch/parse remote version.json: {e}")
+                print("   Creating new version.json structure.")
+
+            # 3. 更新对应通道的数据
+            if "channels" not in final_data:
+                final_data["channels"] = {}
+            
+            final_data["channels"][channel] = current_build_data
+            final_data["updated_at"] = datetime.utcnow().isoformat() + "Z"
+            
+            # 4. 保存到文件
             # 确保输出目录存在
             output_dir = os.path.dirname(output_path)
             if output_dir and not os.path.exists(output_dir):
@@ -133,9 +148,10 @@ class VersionManager:
                 print(f"✅ Created directory: {output_dir}")
             
             with open(output_path, 'w', encoding='utf-8') as f:
-                json.dump(version_data, f, indent=4, ensure_ascii=False)
+                json.dump(final_data, f, indent=4, ensure_ascii=False)
             
             print(f"✅ Generated version.json at {output_path}")
+            print(f"   Channel '{channel}' updated.")
             return True
             
         except Exception as e:

@@ -6,6 +6,7 @@ from PySide6.QtWidgets import QMessageBox
 from src.utils.PathUtils import get_resource_path
 from src.core.ConfigManager import ConfigManager
 from src.core.YamlConfig import YamlConfigManager, DEFAULT_APP_CONFIG
+from pathlib import Path
 from src.network.MinecraftLan import poll_minecraft_lan_once
 from src.gui.main_window.Handlers import log_message
 from src.tools.LogTrimmer import LogTrimmer
@@ -29,7 +30,7 @@ def post_ui_initialize(window):
 def initialize_managers(window):
     """初始化核心管理器"""
     window.config_manager = ConfigManager()
-    window.yaml_config = YamlConfigManager()
+    window.yaml_config = YamlConfigManager(config_dir=str(Path.home() / "Documents" / "MitaHillFRP" / "Config"))
 
 def load_configuration(window):
     """加载YAML配置"""
@@ -49,7 +50,8 @@ def start_log_trimmer(window):
     """启动日志裁剪线程"""
     try:
         logs_size = window.app_config.get("app", {}).get("logs_size", "1MB")
-        log_path = os.path.join("logs", "app.log")
+        docs_logs = os.path.join(os.path.expanduser('~'), 'Documents', 'MitaHillFRP', 'logs')
+        log_path = os.path.join(docs_logs, "app.log")
         window.log_trimmer = LogTrimmer(log_path, logs_size)
         window.log_trimmer.start()
     except Exception as e:

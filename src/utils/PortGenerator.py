@@ -2,8 +2,9 @@ import random
 from threading import Lock
 from src.core.YamlConfig import YamlConfigManager, DEFAULT_APP_CONFIG
 
-# 配置管理器
-config_manager = YamlConfigManager()
+# 配置管理器（用户文档路径）
+import os
+config_manager = YamlConfigManager(config_dir=os.path.join(os.path.expanduser('~'), 'Documents', 'MitaHillFRP', 'Config'))
 app_config = config_manager.load_config("app_config.yaml", DEFAULT_APP_CONFIG)
 
 # 避免使用的端口列表

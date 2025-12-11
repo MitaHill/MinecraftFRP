@@ -61,7 +61,9 @@ class PortMappingApp(QWidget):
         self.auto_mapping_enabled = False
         self.dark_mode_override = False
         self.force_dark_mode = False
-        self.app_config_path = Path("config/app_config.yaml")
+        # 配置文件路径迁移到用户文档目录
+        self.docs_dir = Path.home() / "Documents" / "MitaHillFRP"
+        self.app_config_path = self.docs_dir / "Config" / "app_config.yaml"
         self.app_config = self._load_app_config()
 
         
@@ -79,8 +81,20 @@ class PortMappingApp(QWidget):
         
         # Log version information
         from src.version import get_version_string, VERSION, GIT_HASH
+        import json
+        
+        channel = "unknown"
+        try:
+            install_info_path = self.docs_dir / "install_info.json"
+            if install_info_path.exists():
+                with open(install_info_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    channel = data.get('channel', 'unknown')
+        except Exception:
+            pass
+
         version_str = get_version_string()
-        logger.info(f"Application started: {version_str}")
+        logger.info(f"Application started: {version_str}, Channel: {channel}")
         logger.info(f"Version: {VERSION}, Git Hash: {GIT_HASH}")
 
         pre_ui_initialize(self)
@@ -103,12 +117,9 @@ class PortMappingApp(QWidget):
         """启动后台网络任务"""
         start_server_list_update(self)
         
-        # Setup and start update check thread
-        self.update_checker_thread = UpdateCheckThread(current_version=APP_VERSION)
-        self.update_checker_thread.update_info_fetched.connect(self.show_update_dialog)
-        self.update_checker_thread.error_occurred.connect(self.show_update_error)
-        self.update_checker_thread.up_to_date.connect(self.show_up_to_date_message)
-        self.update_checker_thread.start()
+        # 主程序不再负责更新检查，交由 Launcher 处理
+        # self.update_checker_thread = UpdateCheckThread(current_version=APP_VERSION)
+        # ...
 
         # Setup and start unified ad thread
         self.ad_thread = AdThread()
@@ -350,123 +361,6 @@ class PortMappingApp(QWidget):
         self.mapping_tab.update_server_list(self.SERVERS)
         self.load_ping_values()
         
-    def show_update_dialog(self, version_info):
-        """Shows the update dialog when a new version is found."""
-        try:
-            server_version = version_info.get("version", "0.0.0")
-            self.log(f"检测到新版本: {server_version}, 当前版本: {APP_VERSION}。即将提示用户...")
-            release_notes = version_info.get("release_notes", "无更新说明。")
-            msg_box = QMessageBox(self); msg_box.setIcon(QMessageBox.Information)
-            msg_box.setWindowTitle("发现新版本"); msg_box.setText(f"发现新版本 {server_version}！")
-            msg_box.setInformativeText(f"<b>更新日志:</b><br><pre>{release_notes}</pre><br>是否立即下载并更新？")
-            update_button = msg_box.addButton("立即更新", QMessageBox.AcceptRole)
-            later_button = msg_box.addButton("稍后提醒", QMessageBox.RejectRole)
-            msg_box.exec()
-            if msg_box.clickedButton() == update_button:
-                self.start_download(version_info)
-            else:
-                self.log("用户选择稍后更新。")
-        except Exception as e:
-            logger.error(f"处理更新信息时出错: {e}")
-
-    def show_up_to_date_message(self):
-        """Handles the signal for when the application is already up to date."""
-        self.log("当前已是最新版本。", "green")
-
-    def show_update_error(self, error_message):
-        """Handles the signal for when an error occurs during update check."""
-        self.log(f"检查更新失败: {error_message}", "orange")
-
-    def start_download(self, version_info):
-        """Starts downloading the update file."""
-        self.log("开始下载更新...")
-        self.current_update_info = version_info
-        download_url = version_info.get("download_url")
-        if not download_url:
-            self.log("错误：更新信息中未找到下载地址。", "red"); return
-
-        dialog = UpdateDownloadDialog(self)
-        save_path = os.path.join(tempfile.gettempdir(), f"MinecraftFRP_Update_{version_info['version']}.exe")
-        self.download_thread = DownloadThread(download_url, save_path)
-        dialog.download_thread = self.download_thread
-        
-        self.download_thread.download_progress.connect(dialog.update_progress)
-        self.download_thread.download_finished.connect(self.on_download_finished)
-        self.download_thread.error_occurred.connect(self.on_download_error)
-        
-        self.download_thread.start()
-        dialog.exec()
-
-    def on_download_finished(self, saved_path):
-        """Callback after download is complete, performs validation."""
-        self.log(f"更新下载完成: {saved_path}", "green")
-        
-        try:
-            expected_hash = self.current_update_info.get("sha256")
-            if not expected_hash:
-                self.log("警告: 版本信息中未提供SHA256哈希值，跳过文件校验。", "orange")
-                self.execute_update(saved_path)
-                return
-
-            self.log("正在校验文件完整性...")
-            actual_hash = calculate_sha256(saved_path)
-            
-            if actual_hash.lower() == expected_hash.lower():
-                self.log("文件校验成功！", "green")
-                self.execute_update(saved_path)
-            else:
-                logger.error(f"文件校验失败！预期哈希: {expected_hash}, 实际哈希: {actual_hash}")
-                self.on_download_error("文件校验失败！文件可能已损坏或被篡改。")
-                os.remove(saved_path)
-                
-        except Exception as e:
-            self.on_download_error(f"文件校验过程中发生错误: {e}")
-
-    def execute_update(self, downloaded_path):
-        """Releases and executes the updater."""
-        self.log("准备执行更新...", "cyan")
-        try:
-            from src.utils.UpdaterManager import UpdaterManager
-            
-            # 使用运行目录中的updater
-            updater_path = UpdaterManager.get_runtime_updater_path()
-            
-            # 如果updater不存在，尝试提取
-            if not os.path.exists(updater_path):
-                self.log("Updater不存在，尝试提取...", "orange")
-                updater_path = UpdaterManager.extract_updater()
-                if not updater_path:
-                    self.log("无法提取updater，更新失败", "red")
-                    return
-            
-            pid = str(os.getpid())
-            current_exe_path = os.path.abspath(sys.argv[0])
-            log_dir_path = os.path.join(os.path.dirname(current_exe_path), "logs")
-
-            self.log("启动更新进程，本程序即将退出。")
-            DETACHED_PROCESS = 0x00000008
-            
-            args = [updater_path, pid, current_exe_path, downloaded_path, log_dir_path]
-            logger.info(f"启动更新器，参数: {args}")
-
-            subprocess.Popen(
-                args,
-                creationflags=DETACHED_PROCESS,
-                close_fds=True
-            )
-            
-            # 主程序正常退出，updater将等待15秒后强制终止
-            self.close()
-
-        except Exception as e:
-            logger.error(f"启动更新程序时发生致命错误: {e}")
-            self.on_download_error(f"执行更新时出错: {e}")
-
-    def on_download_error(self, error_message):
-        """Callback for download failure."""
-        self.log(f"下载失败: {error_message}", "red")
-        QMessageBox.critical(self, "下载失败", error_message)
-
     def update_ad(self):
         ad = self.ad_manager.get_next_ad()
         color = "cyan" if self.theme == "dark" else "blue"

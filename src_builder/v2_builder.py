@@ -107,25 +107,31 @@ class V2Builder:
         print(f"⏳ Building launcher from {launcher_script}...")
         print(f"📁 Build directory: {launcher_build_dir.absolute()}")
         
-        # 构建命令 - 添加必要的插件和排除选项
+        # 构建命令 - 单文件、去除 PySide6 插件，静默后台
         cmd = [
             sys.executable, "-m", "nuitka",
             "--standalone",
             "--onefile",
             f"--output-dir={launcher_build_dir}",
             "--output-filename=launcher.exe",
-            "--enable-plugin=pyside6",
-            "--nofollow-import-to=OpenSSL",  # 不要深度跟踪 OpenSSL
-            "--nofollow-import-to=cryptography",  # 不要深度跟踪 cryptography
+            "--nofollow-import-to=OpenSSL",
+            "--nofollow-import-to=cryptography",
             "--windows-console-mode=disable",
             "--company-name=MitaHill",
             "--product-name=MinecraftFRP Launcher",
             "--file-version=" + self.config.get_version_string(),
             "--product-version=" + self.config.get_version_string(),
             "--copyright=Copyright (c) 2025 MitaHill",
-            "--assume-yes-for-downloads",  # 自动确认下载
-            str(launcher_script)
+            "--assume-yes-for-downloads",
+            "--disable-cache=ccache",
         ]
+
+        # 可选：设置EXE图标
+        ico = Path("base") / "logo.ico"
+        if ico.exists():
+            cmd.append(f"--windows-icon-from-ico={ico}")
+
+        cmd.append(str(launcher_script))
         
         if not self.args.fast:
             cmd.append("--lto=yes")
@@ -142,12 +148,11 @@ class V2Builder:
             print(f"❌ ERROR: Launcher build failed with exit code {result.returncode}")
             return False
         
-        # 查找生成的exe
+        # 查找生成的exe（onefile 输出在构建目录根）
         launcher_exe = launcher_build_dir / "launcher.exe"
         print(f"\n🔍 Looking for launcher.exe at: {launcher_exe.absolute()}")
-        
         if not launcher_exe.exists():
-            print(f"❌ ERROR: launcher.exe not found!")
+            print(f"❌ ERROR: launcher.exe not found in build directory!")
             print(f"📁 Contents of {launcher_build_dir}:")
             for item in launcher_build_dir.iterdir():
                 print(f"   - {item.name}")
@@ -185,7 +190,6 @@ class V2Builder:
             f"--output-dir={main_build_dir}",
             "--output-filename=MinecraftFRP.exe",
             "--enable-plugin=pyside6",
-            "--include-data-dir=base=base",
             "--include-data-files=config/app_config.yaml=config/app_config.yaml",
             "--windows-console-mode=disable",
             "--company-name=MitaHill",
@@ -194,8 +198,14 @@ class V2Builder:
             "--product-version=" + current_version,
             "--copyright=Copyright (c) 2025 MitaHill",
             "--assume-yes-for-downloads",
-            "app.py"
+            "--disable-cache=ccache",
         ]
+
+        ico = Path("base") / "logo.ico"
+        if ico.exists():
+            cmd.append(f"--windows-icon-from-ico={ico}")
+
+        cmd.append("app.py")
         
         if not self.args.fast:
             cmd.append("--lto=yes")
@@ -213,11 +223,25 @@ class V2Builder:
             return False
         
         # 查找生成的目录
-        app_dist = main_build_dir / "app.dist"
-        print(f"\n🔍 Looking for app.dist at: {app_dist.absolute()}")
+        dist_dirs = list(main_build_dir.glob("*.dist"))
+        if not dist_dirs:
+            print(f"❌ ERROR: No .dist directory found in {main_build_dir}!")
+            return False
+        
+        # 重命名为 MitaHill-FRP-APP
+        source_dist = dist_dirs[0]
+        target_dist = main_build_dir / "MitaHill-FRP-APP"
+        
+        if target_dist.exists():
+            shutil.rmtree(target_dist)
+            
+        source_dist.rename(target_dist)
+        app_dist = target_dist
+        
+        print(f"\n🔍 Renamed {source_dist.name} to MitaHill-FRP-APP")
         
         if not app_dist.exists() or not app_dist.is_dir():
-            print(f"❌ ERROR: app.dist directory not found!")
+            print(f"❌ ERROR: MitaHill-FRP-APP directory not found!")
             print(f"📁 Contents of {main_build_dir}:")
             for item in main_build_dir.iterdir():
                 print(f"   - {item.name}")
@@ -226,7 +250,7 @@ class V2Builder:
         # 检查主程序exe
         main_exe = app_dist / "MinecraftFRP.exe"
         if not main_exe.exists():
-            print(f"❌ ERROR: MinecraftFRP.exe not found in app.dist!")
+            print(f"❌ ERROR: MinecraftFRP.exe not found in MitaHill-FRP-APP!")
             return False
         
         exe_size_mb = main_exe.stat().st_size / (1024 * 1024)
@@ -234,7 +258,7 @@ class V2Builder:
         
         # 统计文件数量
         file_count = sum(1 for _ in app_dist.rglob('*') if _.is_file())
-        print(f"✅ app.dist contains {file_count} files")
+        print(f"✅ MitaHill-FRP-APP contains {file_count} files")
         
         self.main_app_dir = app_dist
         self.main_build_time = time.time() - start_time
@@ -251,7 +275,8 @@ class V2Builder:
         print("="*80)
         
         current_version = self.config.get_version_string()
-        output_dir = self.dist_dir / "MinecraftFRP_build"
+        # 构建缓存目录放在 build/，避免 dist/ 的同步锁定
+        output_dir = self.build_dir / "MinecraftFRP_build"
         
         # 清理旧的输出目录
         if output_dir.exists():
@@ -267,14 +292,16 @@ class V2Builder:
             launcher_dest = output_dir / "launcher.exe"
             shutil.copy2(self.launcher_exe_path, launcher_dest)
             print(f"✅ Copied launcher.exe")
+
+            # 1.5 单文件模式下无依赖目录，跳过
             
             # 2. 复制主应用目录
-            app_dest = output_dir / "app.dist"
-            shutil.copytree(self.main_app_dir, app_dest, dirs_exist_ok=True)
+            app_dest = output_dir / "MitaHill-FRP-APP"
+            shutil.copytree(self.main_app_dir, app_dest, dirs_exist_ok=True, ignore=shutil.ignore_patterns("logs"))
             
             # 统计文件
             file_count = sum(1 for _ in app_dest.rglob('*') if _.is_file())
-            print(f"✅ Copied app.dist ({file_count} files)")
+            print(f"✅ Copied MitaHill-FRP-APP ({file_count} files)")
             
             # 3. 验证关键文件
             main_exe = app_dest / "MinecraftFRP.exe"
@@ -290,7 +317,8 @@ class V2Builder:
             print(f"\n✅ Build output organized:")
             print(f"   Location: {output_dir}")
             print(f"   - launcher.exe")
-            print(f"   - app.dist/ ({file_count} files)")
+            print(f"   - nuitka_launcher/ (if present)")
+            print(f"   - MitaHill-FRP-APP/ ({file_count} files)")
             
             # 注意: base/ 和 config/ 目录已经在项目根目录，Inno Setup 会直接读取
             
@@ -326,8 +354,8 @@ class V2Builder:
         
         print(f"⏳ Building installer with Inno Setup...")
         
-        # 确保所有构建产物都在正确位置
-        build_output_dir = self.dist_dir / "MinecraftFRP_build"
+        # 确保所有构建产物都在正确位置（使用 build/ 作为缓存目录）
+        build_output_dir = getattr(self, 'build_output_dir', None) or (self.build_dir / "MinecraftFRP_build")
         if not build_output_dir.exists():
             print(f"❌ ERROR: Build output directory not found: {build_output_dir}")
             return False
@@ -336,30 +364,39 @@ class V2Builder:
         print(f"📦 Launcher: {self.launcher_exe_path}")
         print(f"📦 Main app: {self.main_app_dir}")
         
-        # 使用 Inno Setup 编译
-        if not inno.build(script_path, output_dir=self.dist_dir):
+        # 使用 Inno Setup 编译，传入动态路径定义
+        defines = {
+            "BuildOutput": str(build_output_dir.resolve()),
+            "AppDist": str((build_output_dir / "MitaHill-FRP-APP").resolve()),
+            "MyAppVersion": self.config.get_version_string(),
+            "Channel": getattr(self.args, "channel", "dev"),
+        }
+        # 将 Inno 输出放在 build/installer_output
+        installer_out_dir = self.build_dir / "installer_output"
+        installer_out_dir.mkdir(parents=True, exist_ok=True)
+        if not inno.build(script_path, output_dir=installer_out_dir, defines=defines):
             print("❌ ERROR: Inno Setup compilation failed!")
             return False
         
         # 查找生成的安装器
         output_filename = inno.get_output_filename(script_path)
-        if not output_filename:
-            output_filename = f"MinecraftFRP_Setup_{self.config.get_version_string()}"
+        version_str = self.config.get_version_string()
+        if output_filename:
+            # 将脚本中的宏占位符替换为实际版本号
+            output_filename = output_filename.replace("{#MyAppVersion}", version_str)
+        else:
+            output_filename = f"MinecraftFRP_Setup_{version_str}"
         
-        installer_exe = self.dist_dir / f"{output_filename}.exe"
+        installer_exe = installer_out_dir / f"{output_filename}.exe"
         
         print(f"\n🔍 Looking for installer at: {installer_exe.absolute()}")
         
         if not installer_exe.exists():
-            print(f"❌ ERROR: Installer exe not found!")
-            # 尝试查找 dist 目录中的 exe 文件
-            print(f"📁 Contents of {self.dist_dir}:")
-            if self.dist_dir.exists():
-                for item in self.dist_dir.iterdir():
-                    if item.suffix == '.exe':
-                        print(f"  Found: {item.name}")
-                        installer_exe = item
-                        break
+            print(f"❌ ERROR: Installer exe not found! Fallback to pattern search.")
+            # 回退：按模式在输出目录中查找安装器
+            candidates = list(installer_out_dir.glob(f"MinecraftFRP_Setup_{version_str}*.exe"))
+            if candidates:
+                installer_exe = candidates[0]
         
         if not installer_exe.exists():
             print("❌ ERROR: Could not find generated installer!")
@@ -373,6 +410,9 @@ class V2Builder:
         
         print(f"✅ Installer built successfully in {self.installer_build_time:.2f}s")
         print(f"   Location: {installer_exe}")
+        
+        # Dev通道命名为 *_installer_dev.exe（仅在最终拷贝前改名使用）
+        self._channel = getattr(self.args, 'channel', 'dev')
         
         return True
         
@@ -401,7 +441,10 @@ class V2Builder:
         print("="*80)
         
         current_version = self.config.get_version_string()
-        final_dist_dir = self.dist_dir / f"MinecraftFRP_{current_version}_installer"
+        # 最终发布目录改为 dist/MinecraftFRP_<version>/
+        final_dist_dir = self.dist_dir / f"MinecraftFRP_{current_version}"
+        # 供总结与后续步骤使用
+        self.final_dist_dir = final_dist_dir
         
         print(f"📁 Target directory: {final_dist_dir.absolute()}")
         print(f"📄 Source installer: {self.installer_exe_path.absolute()}")
@@ -421,7 +464,14 @@ class V2Builder:
         
         # 复制installer并改名
         try:
-            final_installer = final_dist_dir / f"MinecraftFRP_Setup_{current_version}.exe"
+            # 根据通道命名 (固定文件名)
+            if getattr(self, '_channel', 'dev') == 'dev':
+                final_name = "MitaHill_Dev_FRP.exe"
+            else:
+                final_name = "MitaHill_Stable_FRP.exe"
+                
+            final_installer = final_dist_dir / final_name
+            
             print(f"📋 Copying installer...")
             print(f"   From: {self.installer_exe_path}")
             print(f"   To:   {final_installer}")
@@ -446,19 +496,6 @@ class V2Builder:
         except Exception as e:
             print(f"❌ ERROR: Failed to copy installer: {e}")
             return False
-            
-            # 再次验证文件存在
-            print(f"🔍 Final verification: {self.installer_exe_path.exists()}")
-            
-        except Exception as e:
-            print(f"❌ ERROR: Failed to copy installer: {e}")
-            import traceback
-            traceback.print_exc()
-            return False
-        
-        self.final_dist_dir = final_dist_dir
-        print(f"✅ Artifacts moved successfully")
-        return True
     
     def generate_version_json(self) -> bool:
         """生成version.json"""
@@ -466,22 +503,41 @@ class V2Builder:
         print("📋 Generating version.json")
         print("="*80)
         
-        # 生成发布说明
-        version_url = "https://z.clash.ink/chfs/shared/MinecraftFRP/Data/version.json"
-        release_notes = self.version_manager.generate_release_notes(version_url)
+        # 生成发布说明：优先使用 --update-messages/-u 指定的内容；否则生成默认信息（不依赖 Git 提交范围）
+        if getattr(self.args, 'update_messages', None):
+            release_notes = self.args.update_messages
+            print("INFO: Using manual update messages (-u/--update-messages). Ignoring Git logs.")
+        else:
+            # 默认更新日志：使用当前日期时间与当前分支名
+            try:
+                import subprocess, datetime
+                branch = subprocess.check_output(['git', 'rev-parse', '--abbrev-ref', 'HEAD'], stderr=subprocess.DEVNULL).decode('utf-8').strip()
+            except Exception:
+                branch = 'unknown-branch'
+            now_iso = __import__('datetime').datetime.utcnow().isoformat(timespec='milliseconds') + 'Z'
+            release_notes = f"{now_iso} 根据git分支创建了 ({branch})"
+            print("INFO: Using default update message from current branch and time.")
         
-        # 创建version.json（指向installer）
-        version_json_dir = self.dist_dir / "minecraft_version_index"
+        # 创建version.json（指向installer），放入最终发布目录
+        version_json_dir = getattr(self, 'final_dist_dir', (self.dist_dir / f"MinecraftFRP_{self.config.get_version_string()}"))
         version_json_dir.mkdir(parents=True, exist_ok=True)
         
         self.version_json_path = version_json_dir / "version.json"
-        download_url = "https://z.clash.ink/chfs/shared/MinecraftFRP/lastet/Minecraft_FRP_Installer.exe"
         
+        # 根据通道设置下载URL（固定URL）
+        channel = getattr(self, '_channel', 'dev')
+        if channel == 'dev':
+            download_url = "https://z.clash.ink/chfs/shared/MinecraftFRP/Dev/MitaHill_Dev_FRP.exe"
+        else:
+            download_url = "https://z.clash.ink/chfs/shared/MinecraftFRP/Stable/MitaHill_Stable_FRP.exe"
+        
+        # 调用 VersionManager 的新逻辑（包含下载-合并-保存）
         if not self.version_manager.create_version_json(
             self.installer_exe_path,
             download_url,
             str(self.version_json_path),
-            release_notes
+            release_notes,
+            channel=channel
         ):
             return False
         
@@ -507,13 +563,33 @@ class V2Builder:
         print("🚀 Deploying to Server")
         print("="*80)
         
-        self.deployer = Deployer(ssh_cfg, ssh_user, ssh_pass)
+        # 根据通道动态设置远程路径
+        channel = getattr(self, '_channel', 'dev')
+        base_remote_path = "/root/chfs/share/MinecraftFRP"
+        
+        if channel == 'dev':
+            remote_exe_path = f"{base_remote_path}/Dev/MitaHill_Dev_FRP.exe"
+        else:
+            remote_exe_path = f"{base_remote_path}/Stable/MitaHill_Stable_FRP.exe"
+            
+        # 临时修改 Deployer 实例的路径配置
+        # 注意：这里我们重新实例化 Deployer 或修改 config 传入
+        # 为了简单，我们手动更新 ssh_config 字典的副本
+        deploy_config = ssh_cfg.copy()
+        deploy_config['exe_path'] = remote_exe_path
+        # version.json 路径保持不变
+        deploy_config['version_json_path'] = f"{base_remote_path}/Data/version.json"
+        
+        self.deployer = Deployer(deploy_config, ssh_user, ssh_pass)
         
         # 上传installer和version.json
         return self.deployer.deploy(self.installer_exe_path, str(self.version_json_path))
     
     def cleanup(self):
         """清理build目录"""
+        print(f"\n⏭️  Skipping cleanup for debugging purposes.")
+        return
+
         print(f"\n🧹 Cleaning build directory...")
         print(f"📁 Build directory: {self.build_dir.absolute()}")
         
@@ -563,6 +639,17 @@ class V2Builder:
         self.setup_cache()
         self.print_configuration()
         
+        # 在开始编译前，清空 build/ 目录中的所有缓存
+        try:
+            if self.build_dir.exists():
+                print("\n🧹 Pre-cleaning build directory before compilation...")
+                print(f"📁 Removing: {self.build_dir.absolute()}")
+                import shutil
+                shutil.rmtree(self.build_dir)
+                print("✅ Build directory cleared")
+        except Exception as e:
+            print(f"⚠️  Warning: Failed to pre-clean build directory: {e}")
+        
         if not self.initialize_components():
             return 1
         
@@ -583,6 +670,8 @@ class V2Builder:
         
         if not self.generate_version_json():
             return 1
+        
+        # 按要求移除Git写操作，仅保留信息获取（已删除自动打标签）
         
         deployment_successful = self.deploy()
         

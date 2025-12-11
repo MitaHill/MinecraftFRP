@@ -31,13 +31,14 @@ class InnoSetupBuilder:
         """检查 Inno Setup 是否可用"""
         return self.inno_compiler is not None
     
-    def build(self, script_path: Path, output_dir: Optional[Path] = None) -> bool:
+    def build(self, script_path: Path, output_dir: Optional[Path] = None, defines: Optional[dict] = None) -> bool:
         """
         使用 Inno Setup 编译安装脚本
         
         Args:
             script_path: .iss 脚本文件路径
             output_dir: 输出目录（可选，默认使用脚本中定义的）
+            defines: 预处理器定义，例如 {"BuildOutput": "...", "AppDist": "..."}
         
         Returns:
             bool: 是否成功
@@ -59,6 +60,11 @@ class InnoSetupBuilder:
         
         if output_dir:
             cmd.extend([f"/O{output_dir.absolute()}"])
+        
+        # 传入预处理器定义，避免硬编码路径
+        if defines:
+            for k, v in defines.items():
+                cmd.append(f"/D{k}={str(v)}")
         
         print(f"📝 Command: {' '.join(cmd)}")
         print("\n▶️  Starting Inno Setup compilation...")

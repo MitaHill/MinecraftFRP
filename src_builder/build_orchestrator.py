@@ -166,7 +166,8 @@ class BuildOrchestrator:
             self.final_exe_path,
             download_url,
             str(self.version_json_path),
-            release_notes
+            release_notes,
+            channel=getattr(self.args, 'channel', 'stable')
         ):
             return False
         

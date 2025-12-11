@@ -17,12 +17,12 @@ def parse_arguments():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python build.py --v2                      # V2 build with Inno Setup (fast by default)
-  python build.py --v2 --upload             # V2 build and upload to server
-  python build.py --fast                    # V1 fast build without LTO
-  python build.py --upload                  # V1 build and upload to server
-  python build.py --clean                   # Clean build cache before building
-  python build.py --verify-only             # Only verify dependencies
+  python build.py                          # 默认使用安装器架构进行构建（快速）
+  python build.py --upload                 # 构建并上传到服务器
+  python build.py -u "修复BUG并优化性能"       # 构建并指定更新日志
+  python build.py --fast                   # 快速构建（禁用LTO）
+  python build.py --clean                  # 构建前清理缓存
+  python build.py --verify-only            # 仅验证依赖
         """
     )
     
@@ -45,10 +45,19 @@ Examples:
         help="Skip building updater (reuse existing)"
     )
     
+    # 发布通道（dev/stable）
     parser.add_argument(
-        "--v2",
-        action="store_true",
-        help="Build using v2 installer-based architecture"
+        "--channel", "-c",
+        choices=["dev", "stable"],
+        default="dev",
+        help="选择发布通道：dev（默认）或 stable"
+    )
+    
+    # 更新日志（替代 Git 生成机制）
+    parser.add_argument(
+        "--update-messages", "-u",
+        type=str,
+        help="手动指定本次构建的更新日志（将写入 version.json），忽略 Git 日志"
     )
     
     # 部署相关参数
@@ -79,8 +88,8 @@ Examples:
     
     args = parser.parse_args()
     
-    # 如果使用v2架构，默认启用fast模式（Inno Setup不需要LTO）
-    if args.v2 and not args.fast:
+    # 默认启用快速模式以提升构建速度（安装器架构无需LTO）
+    if not args.fast:
         args.fast = True
     
     return args

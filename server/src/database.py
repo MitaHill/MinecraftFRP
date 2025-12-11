@@ -94,14 +94,35 @@ def upsert_room(room: RoomCreate, client_ip: str):
     c = conn.cursor()
     now = time.time()
     
-    # 使用 REPLACE INTO 或 INSERT OR REPLACE 实现 upsert
-    c.execute('''INSERT OR REPLACE INTO rooms VALUES 
-                 (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
-              (room.full_room_code, room.remote_port, room.node_id,
-               room.room_name, room.game_version, room.player_count,
-               room.max_players, room.description, 1 if room.is_public else 0,
-               room.host_player, room.server_addr, now, client_ip))
-    
+    # 先检查房间是否已存在，如果存在则保留已探测的 game_version 和 description
+    c.execute("SELECT game_version, description FROM rooms WHERE full_room_code = ?", (room.full_room_code,))
+    existing = c.fetchone()
+
+    if existing:
+        # 房间已存在，保留服务端探测的版本和描述（如果有效）
+        existing_version, existing_desc = existing
+        # 只有当已有版本不是默认值时才保留
+        game_version = existing_version if existing_version and existing_version not in ("未知版本", "1.20.1", "") else room.game_version
+        description = existing_desc if existing_desc else room.description
+
+        # 更新房间信息，但保留探测到的版本和描述
+        c.execute('''UPDATE rooms SET 
+                     remote_port = ?, node_id = ?, room_name = ?, game_version = ?,
+                     player_count = ?, max_players = ?, description = ?, is_public = ?,
+                     host_player = ?, server_addr = ?, updated_at = ?, client_ip = ?
+                     WHERE full_room_code = ?''',
+                  (room.remote_port, room.node_id, room.room_name, game_version,
+                   room.player_count, room.max_players, description, 1 if room.is_public else 0,
+                   room.host_player, room.server_addr, now, client_ip, room.full_room_code))
+    else:
+        # 新房间，直接插入
+        c.execute('''INSERT INTO rooms VALUES 
+                     (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                  (room.full_room_code, room.remote_port, room.node_id,
+                   room.room_name, room.game_version, room.player_count,
+                   room.max_players, room.description, 1 if room.is_public else 0,
+                   room.host_player, room.server_addr, now, client_ip))
+
     conn.commit()
     conn.close()
 

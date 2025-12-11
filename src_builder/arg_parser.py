@@ -79,6 +79,13 @@ Examples:
         help="SSH password (overrides cicd.yaml)"
     )
     
+    # 服务端部署
+    parser.add_argument(
+        "--server-on",
+        action="store_true",
+        help="Deploy server-side code to /root/MitaHillFRP-Server"
+    )
+    
     # 其他参数
     parser.add_argument(
         "--verify-only",

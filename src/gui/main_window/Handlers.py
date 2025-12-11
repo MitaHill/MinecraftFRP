@@ -10,7 +10,7 @@ from src.utils.PortGenerator import gen_port
 from src.gui.main_window.Threads import wait_for_thread
 from src.gui.styles import STYLE
 from src.network.WebGuard import WebGuard
-from heartbeat_manager import HeartbeatManager
+from src.network.HeartbeatManager import HeartbeatManager
 
 def set_port(window, port):
     """当检测到端口时，设置端口并触发自动映射"""
@@ -31,6 +31,24 @@ def auto_start_mapping(window):
     else:
         start_map(window)
 
+def validate_port(window):
+    """验证端口输入有效性"""
+    port_text = window.mapping_tab.port_edit.text().strip()
+    if not port_text:
+        QMessageBox.warning(window, "提示", "请输入本地端口")
+        return False
+    
+    if not port_text.isdigit():
+        QMessageBox.warning(window, "提示", "端口必须是数字")
+        return False
+        
+    port = int(port_text)
+    if not (1 <= port <= 65535):
+        QMessageBox.warning(window, "提示", "端口必须在 1-65535 之间")
+        return False
+        
+    return True
+
 def start_map(window):
     """启动frpc映射的核心逻辑"""
     with QMutexLocker(window.app_mutex):
@@ -45,6 +63,19 @@ def start_map(window):
 
         if not validate_port(window):
             return
+
+        # 保存联机厅配置
+        try:
+            lobby_config = {
+                "enabled": window.mapping_tab.lobby_group.isChecked(),
+                "room_name": window.mapping_tab.room_name_edit.text(),
+                "description": window.mapping_tab.room_desc_edit.text(),
+                "max_players": window.mapping_tab.max_players_spin.value()
+            }
+            window.app_config["lobby"] = lobby_config
+            window.yaml_config.save_config("app_config.yaml", window.app_config)
+        except Exception:
+            pass
 
         server_name, host, port, token = get_server_details(window)
         remote_port = gen_port()
@@ -119,21 +150,28 @@ def on_mapping_success(window):
     QApplication.clipboard().setText(window.link)
     log_message(window, "映射地址已自动复制到剪贴板", "green")
 
-    # 若为特殊节点，启动房间心跳
+    # 若为特殊节点，启动双重心跳
     try:
-        if getattr(window, "current_server_is_special", False) and hasattr(window, "_current_mapping"):
-            # 特殊节点名到 node_id 的映射（单字母节点：A=5, B=6, C=7...）
-            special_node_ids = {chr(65 + i): 5 + i for i in range(26)}  # A-Z 映射到 5-30
+        is_special = getattr(window, "current_server_is_special", False) and hasattr(window, "_current_mapping")
+        special_node_ids = {chr(65 + i): 5 + i for i in range(26)}  # A-Z 映射到 5-30
+        
+        # 公共逻辑：准备房间信息
+        lobby_target_url = "https://mapi.clash.ink/api/lobby/rooms"
+        
+        if is_special:
             server_name = window._current_mapping.get("server_name")
             node_id = special_node_ids.get(server_name)
+            
             if node_id:
+                # 1. 特殊节点专属心跳 (lytapi.asia)
                 if not hasattr(window, "heartbeat_manager"):
                     window.heartbeat_manager = HeartbeatManager(
                         "https://lytapi.asia/api.php",
                         lambda msg, c=None: log_message(window, msg, c),
                         lambda: bool(window.th and window.th.manager.is_running())
                     )
-                room_info = {
+                
+                room_info_special = {
                     "full_room_code": f"{window._current_mapping['remote_port']}_{node_id}",
                     "room_name": f"{server_name}的房间",
                     "game_version": "未知版本",
@@ -144,9 +182,49 @@ def on_mapping_success(window):
                     "host_player": getpass.getuser() or "玩家",
                     "server_addr": window._current_mapping["host"],
                 }
-                window.heartbeat_manager.submit_room_info(room_info, start_heartbeat=True)
-                log_message(window, "已启动联机大厅心跳", "blue")
+                window.heartbeat_manager.submit_room_info(room_info_special, start_heartbeat=True)
+                log_message(window, "已启动特殊节点心跳", "blue")
+
+                # 2. 联机大厅心跳 (mapi.clash.ink)
+                if not hasattr(window, "lobby_heartbeat_manager"):
+                    window.lobby_heartbeat_manager = HeartbeatManager(
+                        lobby_target_url,
+                        lambda msg, c=None: None, # 大厅心跳不刷屏日志，静默运行
+                        lambda: bool(window.th and window.th.manager.is_running())
+                    )
+                
+                # 复用相同信息，但发送给联机厅
+                window.lobby_heartbeat_manager.submit_room_info(room_info_special, start_heartbeat=True)
+                # log_message(window, "已同步到联机大厅", "blue")
+
+        # 普通节点联机大厅发布逻辑
+        elif window.mapping_tab.lobby_group.isChecked():
+            # 使用 Node ID 0 作为普通用户标识
+            node_id = 0
+            
+            if not hasattr(window, "lobby_heartbeat_manager"):
+                window.lobby_heartbeat_manager = HeartbeatManager(
+                    lobby_target_url,
+                    lambda msg, c=None: log_message(window, msg, c),
+                    lambda: bool(window.th and window.th.manager.is_running())
+                )
+            
+            room_info_generic = {
+                "full_room_code": f"{window._current_mapping['remote_port']}_{node_id}",
+                "room_name": window.mapping_tab.room_name_edit.text() or f"{getpass.getuser()}的房间",
+                "game_version": "1.20.1", 
+                "player_count": 1,
+                "max_players": window.mapping_tab.max_players_spin.value(),
+                "description": window.mapping_tab.room_desc_edit.text() or "欢迎加入！",
+                "is_public": True,
+                "host_player": getpass.getuser() or "Player",
+                "server_addr": window._current_mapping["host"],
+            }
+            window.lobby_heartbeat_manager.submit_room_info(room_info_generic, start_heartbeat=True)
+            log_message(window, "已将房间发布到联机大厅", "blue")
+            
     except Exception as e:
+        log_message(window, f"启动心跳失败: {e}", "orange")
         log_message(window, f"启动心跳失败: {e}", "orange")
 
 from PySide6.QtCore import QTimer

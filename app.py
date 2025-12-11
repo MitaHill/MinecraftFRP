@@ -3,7 +3,8 @@ import signal
 import argparse
 import logging
 import atexit
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QMessageBox
+from PySide6.QtCore import QLockFile, QDir
 
 from src.core.ServerManager import ServerManager
 from src.core.ConfigManager import ConfigManager
@@ -73,6 +74,7 @@ def main():
             # 提取失败不影响主程序运行
             logger.warning(f"Updater提取失败（不影响正常使用）: {e}")
 
+        # CLI 模式检查逻辑（略过单实例检查，因为CLI可能用于临时任务）
         if len(sys.argv) > 1 and any(arg.startswith('--') for arg in sys.argv[1:]):
             server_manager = ServerManager()
             servers = server_manager.get_servers()
@@ -82,6 +84,16 @@ def main():
             sys.exit(0)
 
         app = QApplication(sys.argv)
+        
+        # --- 单实例互斥锁 ---
+        lock_file = QLockFile(QDir.tempPath() + "/MinecraftFRP.lock")
+        lock_file.setStaleLockTime(0) # 如果之前崩溃，立即接管
+        if not lock_file.tryLock(100):
+            QMessageBox.critical(None, "提示", "程序已经在运行中！\n请不要重复启动。")
+            sys.exit(1)
+        # 将锁挂载到 app 上防止被垃圾回收
+        app._lock_file = lock_file
+
         main_window = PortMappingApp({})
         main_window.show()
         sys.exit(app.exec())

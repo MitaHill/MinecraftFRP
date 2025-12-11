@@ -207,13 +207,14 @@ class BuildOrchestrator:
     
     def deploy(self) -> bool:
         """
-        部署到服务器
+        部署到服务器 (客户端/服务端)
         
         Returns:
             bool: 部署是否成功
         """
-        if not self.args.upload:
-            print("\n⏭️  Skipping deployment (use --upload to deploy).")
+        # 如果既没有上传客户端也没有部署服务端，跳过
+        if not self.args.upload and not getattr(self.args, 'server_on', False):
+            print("\n⏭️  Skipping deployment (use --upload or --server-on).")
             return True
         
         # 获取SSH凭据
@@ -226,7 +227,20 @@ class BuildOrchestrator:
             return False
         
         self.deployer = Deployer(ssh_cfg, ssh_user, ssh_pass)
-        return self.deployer.deploy(self.final_exe_path, str(self.version_json_path))
+        
+        success = True
+        
+        # 部署服务端
+        if getattr(self.args, 'server_on', False):
+            if not self.deployer.deploy_server("server"):
+                success = False
+        
+        # 部署客户端 (上传)
+        if self.args.upload:
+            if not self.deployer.deploy(self.final_exe_path, str(self.version_json_path)):
+                success = False
+                
+        return success
     
     def increment_version(self):
         """递增版本号"""
@@ -276,6 +290,32 @@ class BuildOrchestrator:
         """
         self.print_header()
         
+        # 检查是否为仅服务端部署模式
+        if getattr(self.args, 'server_on', False) and not self.args.upload:
+            print("\n🚀 Mode: Server Deployment Only")
+            print("="*80)
+            
+            # 初始化以获取配置（不执行版本递增逻辑）
+            # 注意：initialize_components 会调用 VersionManager 并可能尝试写文件
+            # 但为了获取 SSH 配置，我们至少需要 self.config
+            # 这里我们手动加载配置，跳过 initialize_components 中的版本更新逻辑
+            try:
+                # 获取 SSH 配置用于验证
+                ssh_cfg = self.config.get_ssh_config()
+                if not ssh_cfg:
+                     print("❌ Failed to load SSH config")
+                     return 1
+            except Exception as e:
+                print(f"❌ Configuration error: {e}")
+                return 1
+
+            # 直接执行部署
+            if self.deploy():
+                print("\n✅ Server deployment complete.")
+                return 0
+            else:
+                return 1
+
         # 环境验证
         if not self.verify_environment():
             return 0 if self.args.verify_only else 1

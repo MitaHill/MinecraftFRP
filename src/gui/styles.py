@@ -1,11 +1,11 @@
 # 主题样式
 STYLE = {
     "light": """
-QWidget{background:#f8f9fa;font-size:14px;font-family:'Microsoft YaHei';}
+QWidget{background:#f8f9fa;font-size:14px;font-family:'Microsoft YaHei';color:#000;}
 QLabel{color:#495057;margin-bottom:8px;}
 QPushButton{background:#4CAF50;color:#fff;padding:8px 16px;border:none;border-radius:4px;}
 QPushButton:hover{background:#45a049;}
-QLineEdit,QTextEdit{background:#fff;border:1px solid #dee2e6;padding:8px;border-radius:4px;color:#000;}
+QLineEdit,QTextEdit,QSpinBox{background:#fff;border:1px solid #dee2e6;padding:8px;border-radius:4px;color:#000;selection-background-color:#0078d7;selection-color:#fff;}
 QComboBox{
     min-width:150px;
     color: #212529;
@@ -60,6 +60,29 @@ QHeaderView::section {
     padding: 4px;
     border: 1px solid #dee2e6;
 }
+QGroupBox {
+    border: 1px solid #aaa;
+    border-radius: 5px;
+    margin-top: 2ex; /* leave space at the top for the title */
+    color: #333;
+}
+QGroupBox::title {
+    subcontrol-origin: margin;
+    subcontrol-position: top left; /* position at the top center */
+    padding: 0 3px;
+    color: #333;
+}
+QGroupBox::indicator {
+    width: 16px;
+    height: 16px;
+    border: 1px solid #ced4da;
+    border-radius: 3px;
+    background-color: #ffffff;
+}
+QGroupBox::indicator:checked {
+    background-color: #4CAF50;
+    border: 1px solid #4CAF50;
+}
 """,
     "dark": """
 QWidget{background:#1e1e1e;font-size:14px;font-family:'Microsoft YaHei';color:#e0e0e0;}
@@ -105,6 +128,17 @@ QHeaderView::section {
     color: #b3b3b3;
     padding: 4px;
     border: 1px solid #404040;
+}
+QGroupBox {
+    border: 1px solid #555;
+    border-radius: 5px;
+    margin-top: 2ex;
+}
+QGroupBox::title {
+    subcontrol-origin: margin;
+    subcontrol-position: top left;
+    padding: 0 3px;
+    color: #ddd;
 }
 """,
 }

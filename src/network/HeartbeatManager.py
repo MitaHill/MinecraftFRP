@@ -104,6 +104,7 @@ class HeartbeatManager:
                 node_id = int(room_parts[1])
 
                 submit_data = {
+                    'full_room_code': full_room_code,
                     'remote_port': remote_port,
                     'node_id': node_id,
                     'room_name': room_info.get('room_name', '未知房间'),
@@ -172,6 +173,7 @@ class HeartbeatManager:
                     # 重新构造心跳数据，以防房间信息在外部被修改（虽然此处应该使用self.current_room_info）
                     # 保证每次发送的是最新的房间状态
                     heartbeat_data = {
+                        'full_room_code': full_room_code,
                         'remote_port': remote_port,
                         'node_id': node_id,
                         'room_name': self.current_room_info.get('room_name', '未知房间'),
@@ -194,8 +196,8 @@ class HeartbeatManager:
                 except Exception as e:
                     self.log(f"✗ 心跳发送错误 #{heartbeat_count}: {e}")
                 
-                # 等待30秒，期间检查心跳状态以便及时停止
-                for _ in range(30):
+                # 等待5秒，期间检查心跳状态以便及时停止
+                for _ in range(5):
                     if not self.heartbeat_active:
                         break
                     if not self.is_frp_running_callback(): # 再次检查FRP状态
@@ -214,8 +216,9 @@ class HeartbeatManager:
         """
         if self.heartbeat_active:
             self.heartbeat_active = False
-            # 确保心跳线程有时间停止
-            if self.heartbeat_thread and self.heartbeat_thread.is_alive():
+            
+            # 避免线程等待自己结束（死锁/RuntimeError）
+            if self.heartbeat_thread and self.heartbeat_thread is not threading.current_thread() and self.heartbeat_thread.is_alive():
                 self.heartbeat_thread.join(timeout=2)
             
             # 如果有当前房间信息，尝试通知服务器删除

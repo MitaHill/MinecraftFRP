@@ -8,6 +8,7 @@ from src.gui.tabs.MappingTab import MappingTab
 from src.gui.tabs.ToolboxTab import ToolboxTab
 from src.gui.tabs.SettingsTab import SettingsTab
 from src.gui.tabs.BrowserTab import BrowserTab
+from src.gui.tabs.LobbyTab import LobbyTab
 from src.utils.PathUtils import get_resource_path
 from src.utils.LogManager import get_logger
 
@@ -48,11 +49,13 @@ def setup_theme(window):
 def setup_tabs(window, servers):
     """初始化并添加Tabs"""
     window.mapping_tab = MappingTab(window, servers)
+    window.lobby_tab = LobbyTab(window)
     window.toolbox_tab = ToolboxTab(window)
     window.settings_tab = SettingsTab(window)
     window.browser_tab = BrowserTab(window)
 
     window.tab_widget.addTab(window.mapping_tab, "映射")
+    window.tab_widget.addTab(window.lobby_tab, "联机大厅")
     window.tab_widget.addTab(window.toolbox_tab, "工具箱")
     window.tab_widget.addTab(window.settings_tab, "设置")
     window.tab_widget.addTab(window.browser_tab, "线上公告")

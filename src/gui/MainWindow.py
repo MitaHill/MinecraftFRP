@@ -353,6 +353,11 @@ class PortMappingApp(QWidget):
                 self.heartbeat_manager.stop_room_heartbeat()
         except Exception:
             pass
+        try:
+            if hasattr(self, "lobby_heartbeat_manager"):
+                self.lobby_heartbeat_manager.stop_room_heartbeat()
+        except Exception:
+            pass
         self.th = None
     def onLANPollerTerminated(self): self.lan_poller = None
     def on_servers_updated(self, new_servers):

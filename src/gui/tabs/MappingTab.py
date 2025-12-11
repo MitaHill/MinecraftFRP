@@ -1,5 +1,5 @@
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton, 
-                              QLabel, QComboBox, QLineEdit, QTextEdit)
+                              QLabel, QComboBox, QLineEdit, QTextEdit, QGroupBox, QSpinBox, QFormLayout)
 from src.network.PingUtils import load_ping_data
 
 class MappingTab(QWidget):
@@ -16,8 +16,37 @@ class MappingTab(QWidget):
 
         self.add_server_selection(layout)
         self.add_port_input(layout)
+        self.add_lobby_settings(layout)
         self.add_action_buttons(layout)
         self.add_log_area(layout)
+
+    def add_lobby_settings(self, layout):
+        self.lobby_group = QGroupBox("发布到联机大厅")
+        self.lobby_group.setCheckable(True)
+        
+        # Load Config
+        lobby_config = self.parent_window.app_config.get("lobby", {})
+        self.lobby_group.setChecked(lobby_config.get("enabled", False))
+        
+        form_layout = QFormLayout(self.lobby_group)
+        
+        self.room_name_edit = QLineEdit()
+        self.room_name_edit.setPlaceholderText("给房间起个名字")
+        self.room_name_edit.setText(lobby_config.get("room_name", "我的Minecraft服务器"))
+        
+        self.room_desc_edit = QLineEdit()
+        self.room_desc_edit.setPlaceholderText("简短的介绍（可选）")
+        self.room_desc_edit.setText(lobby_config.get("description", ""))
+        
+        self.max_players_spin = QSpinBox()
+        self.max_players_spin.setRange(1, 100)
+        self.max_players_spin.setValue(lobby_config.get("max_players", 10))
+        
+        form_layout.addRow("房间名称:", self.room_name_edit)
+        form_layout.addRow("房间介绍:", self.room_desc_edit)
+        form_layout.addRow("最大人数:", self.max_players_spin)
+        
+        layout.addWidget(self.lobby_group)
 
     def add_server_selection(self, layout):
         server_layout = QHBoxLayout()

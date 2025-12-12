@@ -9,7 +9,8 @@ from .database import (init_db, upsert_room, delete_room, get_rooms, cleanup_sta
                        get_online_count, cleanup_offline_users,
                        add_blacklist_rule, remove_blacklist_rule, get_blacklist_rules,
                        add_whitelist_rule, remove_whitelist_rule, get_whitelist_rules,
-                       get_access_logs, upsert_tunnel, cleanup_stale_tunnels, get_active_tunnels)
+                       get_access_logs, upsert_tunnel, cleanup_stale_tunnels, get_active_tunnels,
+                       get_online_users_list)
 from .utils import get_effective_ip, mask_ip
 from .logger import logger
 from .security import RateLimitMiddleware
@@ -301,6 +302,11 @@ async def api_get_access_logs():
 async def api_get_online_users():
     """获取所有活跃隧道（在线用户）信息"""
     return {"success": True, "users": get_active_tunnels()}
+
+@app.get("/api/admin/online_app_users", dependencies=[Depends(verify_admin)])
+async def api_get_online_app_users():
+    """获取所有软件在线用户（大厅心跳）"""
+    return {"success": True, "users": get_online_users_list()}
 
 @app.get("/api/admin/blacklist", dependencies=[Depends(verify_admin)])
 async def api_get_blacklist():

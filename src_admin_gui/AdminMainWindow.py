@@ -219,13 +219,15 @@ class AdminMainWindow(QMainWindow):
         self.setCentralWidget(self.tabs)
         
         # Tabs
-        self.online_users_tab = OnlineUsersWidget()
+        self.online_users_tab = OnlineUsersWidget(mode='tunnels')
+        self.app_users_tab = OnlineUsersWidget(mode='apps')
         self.blacklist_tab = RulesWidget("blacklist")
         self.whitelist_tab = RulesWidget("whitelist")
         self.logs_tab = AccessLogsWidget()
         self.local_log_tab = LocalLogWidget()
         
-        self.tabs.addTab(self.online_users_tab, "在线用户 (Online)")
+        self.tabs.addTab(self.online_users_tab, "活跃隧道 (Tunnels)")
+        self.tabs.addTab(self.app_users_tab, "大厅用户 (Lobby Users)")
         self.tabs.addTab(self.blacklist_tab, "黑名单 (Blacklist)")
         self.tabs.addTab(self.whitelist_tab, "白名单 (Whitelist)")
         self.tabs.addTab(self.logs_tab, "访问日志 (Access Logs)")
@@ -246,6 +248,7 @@ class AdminMainWindow(QMainWindow):
         self.blacklist_tab.refresh()
         self.whitelist_tab.refresh()
         self.online_users_tab.refresh()
+        self.app_users_tab.refresh()
         
     def open_server_manager(self):
         dialog = ServerManagementDialog(self)

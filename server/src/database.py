@@ -221,15 +221,23 @@ def update_online_heartbeat(client_ip: str):
 
 def get_online_count(timeout_seconds: int = 15) -> int:
     """获取在线用户数量（超过timeout_seconds未心跳的视为离线）"""
-    conn = get_db_connection()
-    c = conn.cursor()
-    try:
+    with _db_lock:
+        conn = get_db_connection()
+        c = conn.cursor()
         threshold = time.time() - timeout_seconds
         c.execute("SELECT COUNT(*) FROM online_users WHERE last_heartbeat >= ?", (threshold,))
         count = c.fetchone()[0]
-    finally:
-        conn.close()
-    return count
+        return count
+
+def get_online_users_list(timeout_seconds: int = 15) -> List[dict]:
+    """获取在线用户列表（软件在线）"""
+    with _db_lock:
+        conn = get_db_connection()
+        conn.row_factory = sqlite3.Row
+        c = conn.cursor()
+        threshold = time.time() - timeout_seconds
+        c.execute("SELECT * FROM online_users WHERE last_heartbeat >= ? ORDER BY last_heartbeat DESC", (threshold,))
+        return [dict(row) for row in c.fetchall()]
 
 def cleanup_offline_users(timeout_seconds: int = 15) -> int:
     """清理超时的离线用户"""

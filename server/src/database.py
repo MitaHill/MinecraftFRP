@@ -8,6 +8,9 @@ from .logger import logger
 
 DB_PATH = "data.db"
 
+# Global lock for thread safety
+_db_lock = threading.Lock()
+
 def get_db_connection():
     """获取数据库连接，启用 WAL 模式"""
     conn = sqlite3.connect(DB_PATH)

@@ -2,19 +2,33 @@ import sys
 import signal
 import logging
 import atexit
-from PySide6.QtWidgets import QApplication, QMessageBox
-from PySide6.QtCore import QLockFile, QDir
+import os
+import traceback
+from pathlib import Path
 
-from src.core.ServerManager import ServerManager
-from src.core.ConfigManager import ConfigManager
-from src.gui.MainWindow import PortMappingApp
-from src.utils.UpdaterManager import UpdaterManager
-from src.version import VERSION, GIT_HASH, get_version_string
+# 设置日志和崩溃报告路径 (用户文档目录)
+DOCS_DIR = Path.home() / "Documents" / "MitaHillFRP"
+LOGS_DIR = DOCS_DIR / "logs"
+CRASH_LOG = LOGS_DIR / "crash_log.txt"
 
+try:
+    LOGS_DIR.mkdir(parents=True, exist_ok=True)
+except:
+    pass
+
+# 配置基础日志，确保在模块加载前就能记录
+logging.basicConfig(
+    filename=LOGS_DIR / "app_startup.log",
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    encoding='utf-8'
+)
 logger = logging.getLogger(__name__)
 
 def sigint_handler(sig_num, frame):
     """Handles the interrupt signal."""
+    # 延迟导入
+    from src.gui.MainWindow import PortMappingApp
     if PortMappingApp.inst:
         PortMappingApp.inst.close()
     sys.exit(0)
@@ -22,6 +36,7 @@ def sigint_handler(sig_num, frame):
 def cleanup():
     """Application exit cleanup."""
     try:
+        from src.core.ConfigManager import ConfigManager
         ConfigManager.cleanup_temp_dir()
     except Exception:
         pass
@@ -29,54 +44,60 @@ def cleanup():
 def main():
     """Main application entry point."""
     atexit.register(cleanup)
-    try:
-        # 设置全局异常钩子
-        def handle_exception(exc_type, exc_value, exc_traceback):
-            if issubclass(exc_type, KeyboardInterrupt):
-                sys.__excepthook__(exc_type, exc_value, exc_traceback)
-                return
-            try:
-                logger.critical("Uncaught exception", exc_info=(exc_type, exc_value, exc_traceback))
-            except:
-                pass
-            # 同时写入crash_log.txt以防日志模块未初始化
-            try:
-                with open("crash_log.txt", "w", encoding="utf-8") as f:
-                    import traceback
-                    traceback.print_exception(exc_type, exc_value, exc_traceback, file=f)
-            except:
-                pass
-
-        sys.excepthook = handle_exception
-
-        signal.signal(signal.SIGINT, sigint_handler)
+    
+    # 设置全局异常钩子
+    def handle_exception(exc_type, exc_value, exc_traceback):
+        if issubclass(exc_type, KeyboardInterrupt):
+            sys.__excepthook__(exc_type, exc_value, exc_traceback)
+            return
+        try:
+            logger.critical("Uncaught exception", exc_info=(exc_type, exc_value, exc_traceback))
+        except:
+            pass
+        # 写入崩溃日志
+        try:
+            with open(CRASH_LOG, "w", encoding="utf-8") as f:
+                f.write("Application Crash Report\n")
+                f.write("=========================\n")
+                traceback.print_exception(exc_type, exc_value, exc_traceback, file=f)
+        except:
+            pass
         
+        # 尝试弹窗提示 (如果 PySide6 已加载)
+        try:
+            import ctypes
+            ctypes.windll.user32.MessageBoxW(0, f"程序发生严重错误已崩溃。\n请查看日志: {CRASH_LOG}", "MinecraftFRP Crash", 16)
+        except:
+            pass
+
+    sys.excepthook = handle_exception
+    signal.signal(signal.SIGINT, sigint_handler)
+
+    try:
         # 输出版本信息
+        # 延迟导入
+        from src.version import VERSION, GIT_HASH, get_version_string
         version_str = get_version_string()
-        print(f"\n{'='*60}")
-        print(f"  {version_str}")
-        print(f"{'='*60}\n")
         logger.info(f"Application started: {version_str}")
         logger.info(f"Version: {VERSION}, Git Hash: {GIT_HASH}")
         
         # 如果是编译版本，提取updater到运行目录
+        from src.utils.UpdaterManager import UpdaterManager
         try:
             UpdaterManager.extract_updater()
             UpdaterManager.cleanup_old_updater()
         except Exception as e:
-            # 提取失败不影响主程序运行
             logger.warning(f"Updater提取失败（不影响正常使用）: {e}")
+
+        # 延迟导入 PySide6，防止 DLL 加载失败导致静默退出
+        from PySide6.QtWidgets import QApplication, QMessageBox
+        from PySide6.QtCore import QLockFile, QDir
+        from src.gui.MainWindow import PortMappingApp
 
         app = QApplication(sys.argv)
         
         # --- 启动来源验证 ---
-        # 必须由 launcher.exe 启动 (带有 --launched-by-launcher 参数)
         if "--launched-by-launcher" not in sys.argv:
-            # 允许在开发环境下(非编译)直接运行，判断依据可以是是否为 frozen (Nuitka/PyInstaller)
-            # 或者简单点：如果参数里没有这个标记，直接拒绝。
-            # 考虑到开发调试方便，我们可以允许通过命令行手动加参数，或者检查是否是 python 解释器直接运行
-            # 但为了满足用户"只有被启动器调用时才正常启动"的强需求，我们严格执行。
-            # 开发人员调试时需手动添加该参数: python app.py --launched-by-launcher
             QMessageBox.critical(None, "启动错误", 
                                  "请使用启动器 (Launcher.exe) 启动本程序！\n\n"
                                  "Please run Launcher.exe to start the application.")
@@ -94,15 +115,23 @@ def main():
         main_window = PortMappingApp({})
         main_window.show()
         sys.exit(app.exec())
-    except Exception as e:
-        logger.critical(f"Fatal error in main loop: {e}", exc_info=True)
+        
+    except ImportError as e:
+        # 捕获导入错误 (如 PySide6 DLL 缺失)
+        error_msg = f"Failed to import dependencies: {e}\nProbable cause: Missing VC++ Redistributable or corrupted installation."
+        logger.critical(error_msg)
+        with open(CRASH_LOG, "w", encoding="utf-8") as f:
+            f.write(error_msg)
         try:
-            with open("crash_log.txt", "w", encoding="utf-8") as f:
-                import traceback
-                f.write(f"Fatal error: {e}\n")
-                traceback.print_exc(file=f)
+            import ctypes
+            ctypes.windll.user32.MessageBoxW(0, error_msg, "Startup Error", 16)
         except:
             pass
+        sys.exit(1)
+        
+    except Exception as e:
+        logger.critical(f"Fatal error in main loop: {e}", exc_info=True)
+        handle_exception(type(e), e, e.__traceback__)
         sys.exit(1)
 
 if __name__ == "__main__":

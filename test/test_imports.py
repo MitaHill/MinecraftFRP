@@ -2,7 +2,11 @@
 测试所有installer模块的导入
 """
 import sys
+import os
 import traceback
+
+# Add project root to sys.path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 def test_imports():
     print("🧪 测试installer模块导入...\n")

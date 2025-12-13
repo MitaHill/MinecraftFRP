@@ -154,8 +154,14 @@ class LobbyTab(QWidget):
 
     def refresh_online_count(self):
         """刷新在线人数"""
-        self.online_worker = OnlineCountWorker()
+        # 防止重入：如果上一次请求还没完成，跳过本次
+        if self.online_worker and self.online_worker.isRunning():
+            return
+
+        self.online_worker = OnlineCountWorker(self)
         self.online_worker.online_count_updated.connect(self.on_online_count_updated)
+        # 任务完成后自动清理
+        self.online_worker.finished.connect(self.online_worker.deleteLater)
         self.online_worker.start()
 
     def on_online_count_updated(self, count):
@@ -163,6 +169,10 @@ class LobbyTab(QWidget):
         self.online_label.setText(f"🟢 在线人数: {count}")
 
     def refresh_list(self):
+        # 如果正在加载，直接返回
+        if self.worker and self.worker.isRunning():
+            return
+
         self.refresh_btn.setEnabled(False)
         self.status_label.setText("正在加载房间列表...")
         
@@ -174,10 +184,11 @@ class LobbyTab(QWidget):
                 widget.deleteLater()
 
         # 启动后台线程
-        self.worker = LobbyWorker()
+        self.worker = LobbyWorker(self)
         self.worker.rooms_loaded.connect(self.on_rooms_loaded)
         self.worker.error_occurred.connect(self.on_error)
         self.worker.finished.connect(lambda: self.refresh_btn.setEnabled(True))
+        self.worker.finished.connect(self.worker.deleteLater)
         self.worker.start()
 
     def on_rooms_loaded(self, rooms):

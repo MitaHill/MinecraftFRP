@@ -110,10 +110,18 @@ class UserHeartbeatManager(QObject):
     def stop(self):
         """停止心跳"""
         self._timer.stop()
+        if self._worker and self._worker.isRunning():
+            self._worker.quit()
+            self._worker.wait()
     
     def _send_heartbeat(self):
         """在后台线程发送心跳"""
-        self._worker = HeartbeatWorker()
+        # 防止重入：如果上一次心跳还没完成，跳过本次
+        if self._worker and self._worker.isRunning():
+            return
+
+        self._worker = HeartbeatWorker(self)
+        self._worker.finished.connect(self._worker.deleteLater)
         self._worker.start()
 
 class HeartbeatWorker(QThread):

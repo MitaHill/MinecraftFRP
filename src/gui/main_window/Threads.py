@@ -34,15 +34,26 @@ def load_ping_values(window):
     cached = load_ping_data()
     if cached:
         update_server_combo(window, cached)
+    
+    # 防止重入：如果Ping还在进行中，跳过本次
+    if window.ping_thread and window.ping_thread.isRunning():
+        return
+
     # 后台异步刷新真实延迟
     window.ping_thread = PingThread(window.SERVERS)
     window.ping_thread.ping_results.connect(window.update_server_combo)
+    # 自动清理
+    window.ping_thread.finished.connect(window.ping_thread.deleteLater)
     window.ping_thread.start()
 
 def start_server_list_update(window):
     """启动后台线程，从网络更新服务器列表"""
+    if window.server_update_thread and window.server_update_thread.isRunning():
+        return
+
     window.server_update_thread = ServerUpdateThread()
     window.server_update_thread.servers_updated.connect(window.on_servers_updated)
+    window.server_update_thread.finished.connect(window.server_update_thread.deleteLater)
     window.server_update_thread.start()
 
 def update_server_combo(window, results):
@@ -56,11 +67,20 @@ def update_server_combo(window, results):
 
 def wait_for_thread(thread):
     """等待线程优雅退出，带超时"""
+    if not thread:
+        return
+        
     loop = QEventLoop()
     timer = QTimer()
     timer.setSingleShot(True)
     timer.timeout.connect(loop.quit)
-    thread.terminated.connect(loop.quit)
+    
+    # 使用标准的 finished 信号，兼容所有 QThread
+    thread.finished.connect(loop.quit)
+    # 兼容自定义的 terminated 信号 (如果有)
+    if hasattr(thread, 'terminated'):
+        thread.terminated.connect(loop.quit)
+        
     timer.start(THREAD_TIMEOUT)
     loop.exec()
 

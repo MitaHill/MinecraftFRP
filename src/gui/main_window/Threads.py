@@ -36,20 +36,32 @@ def load_ping_values(window):
         update_server_combo(window, cached)
     
     # 防止重入：如果Ping还在进行中，跳过本次
-    if window.ping_thread and window.ping_thread.isRunning():
-        return
+    if window.ping_thread:
+        try:
+            if window.ping_thread.isRunning():
+                return
+        except RuntimeError:
+            # C++对象已删除，说明线程已结束
+            window.ping_thread = None
 
     # 后台异步刷新真实延迟
     window.ping_thread = PingThread(window.SERVERS)
     window.ping_thread.ping_results.connect(window.update_server_combo)
     # 自动清理
     window.ping_thread.finished.connect(window.ping_thread.deleteLater)
+    # 额外：结束后将 Python 引用置空（通过 lambda 闭包稍微有点风险，但比没有好，或者依靠上面的 RuntimeError 检查）
+    # window.ping_thread.finished.connect(lambda: setattr(window, 'ping_thread', None)) 
+    # 上面这行在快速连续调用时可能不安全，暂时依靠 try-except 保护
     window.ping_thread.start()
 
 def start_server_list_update(window):
     """启动后台线程，从网络更新服务器列表"""
-    if window.server_update_thread and window.server_update_thread.isRunning():
-        return
+    if window.server_update_thread:
+        try:
+            if window.server_update_thread.isRunning():
+                return
+        except RuntimeError:
+            window.server_update_thread = None
 
     window.server_update_thread = ServerUpdateThread()
     window.server_update_thread.servers_updated.connect(window.on_servers_updated)

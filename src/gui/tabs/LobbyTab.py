@@ -155,8 +155,12 @@ class LobbyTab(QWidget):
     def refresh_online_count(self):
         """刷新在线人数"""
         # 防止重入：如果上一次请求还没完成，跳过本次
-        if self.online_worker and self.online_worker.isRunning():
-            return
+        if self.online_worker:
+            try:
+                if self.online_worker.isRunning():
+                    return
+            except RuntimeError:
+                self.online_worker = None
 
         self.online_worker = OnlineCountWorker(self)
         self.online_worker.online_count_updated.connect(self.on_online_count_updated)
@@ -170,8 +174,12 @@ class LobbyTab(QWidget):
 
     def refresh_list(self):
         # 如果正在加载，直接返回
-        if self.worker and self.worker.isRunning():
-            return
+        if self.worker:
+            try:
+                if self.worker.isRunning():
+                    return
+            except RuntimeError:
+                self.worker = None
 
         self.refresh_btn.setEnabled(False)
         self.status_label.setText("正在加载房间列表...")

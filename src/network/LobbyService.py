@@ -117,8 +117,12 @@ class UserHeartbeatManager(QObject):
     def _send_heartbeat(self):
         """在后台线程发送心跳"""
         # 防止重入：如果上一次心跳还没完成，跳过本次
-        if self._worker and self._worker.isRunning():
-            return
+        if self._worker:
+            try:
+                if self._worker.isRunning():
+                    return
+            except RuntimeError:
+                self._worker = None
 
         self._worker = HeartbeatWorker(self)
         self._worker.finished.connect(self._worker.deleteLater)

@@ -104,18 +104,24 @@ async def audit_room_task(host: str, port: int, full_room_code: str, remote_port
     except Exception as e:
         logger.error(f"Audit task failed for {full_room_code}: {e}")
 
-async def robust_get_server_status(host: str, port: int, retries: int = 5) -> Optional[dict]:
+async def robust_get_server_status(host: str, port: int, retries: int = 3) -> Optional[dict]:
     """
-    Robust server status check with retries.
-    Retries up to 5 times with short intervals to handle network congestion.
+    Robust server status check with progressive timeout strategy.
+    Tries 3 times with increasing timeouts (2s, 3s, 5s) to handle network congestion
+    while avoiding overly long blocking.
     """
-    for i in range(retries):
-        # Use a short timeout (2s) to keep total time reasonable
-        status = await get_server_status(host, port, timeout=2.0)
+    timeouts = [2.0, 3.0, 5.0]
+    
+    for i, timeout in enumerate(timeouts):
+        status = await get_server_status(host, port, timeout=timeout)
         if status:
             return status
-        # Wait a bit before retry (exponential backoff or constant)
-        await asyncio.sleep(0.5)
+            
+        # Exponential backoff for retry interval: 0.5s, 1.0s, etc.
+        if i < len(timeouts) - 1:
+            sleep_time = 0.5 * (2 ** i)
+            await asyncio.sleep(sleep_time)
+            
     return None
 
 @asynccontextmanager

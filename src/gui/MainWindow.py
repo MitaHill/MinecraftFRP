@@ -270,3 +270,4 @@ class PortMappingApp(QWidget):
     def start_web_browser(self): open_help_browser(self)
     def load_ping_values(self): load_ping_values(self)
     def log(self, message, color=None): log_message(self, message, color)
+    def update_ad(self): self._update_scrolling_ad()

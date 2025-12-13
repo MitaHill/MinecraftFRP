@@ -60,12 +60,18 @@ def stop_all_threads(window):
         for thread_name in threads_to_stop:
             if hasattr(window, thread_name):
                 thread = getattr(window, thread_name)
-                if thread and thread.isRunning():
-                    # 大多数QThread子类默认没有stop方法，使用terminate不安全，wait即可
-                    # 如果有特定的stop方法（如ServerUpdateThread），应该调用它
-                    # 这里尝试通用处理：如果有stop则调用，否则等待
-                    if hasattr(thread, 'stop') and callable(thread.stop):
-                        thread.stop()
-                    thread.wait(2000) # 最多等待2秒
-                    if thread.isRunning():
-                        thread.terminate() # 强制终止（防止挂起关闭流程）
+                try:
+                    if thread and thread.isRunning():
+                        # 大多数QThread子类默认没有stop方法，使用terminate不安全，wait即可
+                        # 如果有特定的stop方法（如ServerUpdateThread），应该调用它
+                        # 这里尝试通用处理：如果有stop则调用，否则等待
+                        if hasattr(thread, 'stop') and callable(thread.stop):
+                            thread.stop()
+                        thread.wait(2000) # 最多等待2秒
+                        if thread.isRunning():
+                            thread.terminate() # 强制终止（防止挂起关闭流程）
+                except RuntimeError:
+                    # C++对象已删除，忽略
+                    pass
+                except Exception as e:
+                    print(f"Error stopping thread {thread_name}: {e}")

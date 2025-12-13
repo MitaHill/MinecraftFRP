@@ -57,19 +57,37 @@ try:
         crash_log_file = log_dir / "crash_log.txt"
 
         try:
-            logging.basicConfig(
-                filename=startup_log_file,
-                level=logging.INFO,
-                format='%(asctime)s - %(levelname)s - %(name)s - %(message)s',
-                encoding='utf-8',
-                force=True  # 如果已配置，则重新配置
+            # 使用 RotatingFileHandler 替代 basicConfig，自动管理日志大小
+            from logging.handlers import RotatingFileHandler
+            
+            root_logger = logging.getLogger()
+            root_logger.setLevel(logging.INFO)
+            
+            # 清除旧的处理器（如果有）
+            root_logger.handlers = []
+            
+            # 1MB 大小，保留 1 个备份
+            handler = RotatingFileHandler(
+                startup_log_file, 
+                maxBytes=1*1024*1024, 
+                backupCount=1, 
+                encoding='utf-8'
             )
-            _logger = logging.getLogger()
+            formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(name)s - %(message)s')
+            handler.setFormatter(formatter)
+            root_logger.addHandler(handler)
+            
+            # 可选：也输出到控制台（方便调试，如果有控制台的话）
+            # console_handler = logging.StreamHandler()
+            # console_handler.setFormatter(formatter)
+            # root_logger.addHandler(console_handler)
+
+            _logger = root_logger
             _logger.info("--- Application Starting ---")
-            _logger.info(f"Logging initialized successfully. Log directory: {log_dir}")
+            _logger.info(f"Logging initialized successfully (Rotating). Log directory: {log_dir}")
             return _logger, crash_log_file
         except Exception as e:
-            sys.stderr.write(f"FATAL: Failed to configure basicConfig: {e}\n")
+            sys.stderr.write(f"FATAL: Failed to configure logging: {e}\n")
             return None, None
 
     def sigint_handler(sig_num, frame):

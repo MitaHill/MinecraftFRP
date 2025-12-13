@@ -35,11 +35,6 @@ def stop_all_threads(window):
             window.lan_poller.stop()
             window.lan_poller.wait() # 等待线程完全终止
 
-        # 停止日志裁剪线程
-        if hasattr(window, 'log_trimmer') and window.log_trimmer and window.log_trimmer.isRunning():
-            window.log_trimmer.stop()
-            window.log_trimmer.wait()
-            
         # 停止其他后台线程
         threads_to_stop = [
             'server_update_thread',

@@ -9,7 +9,6 @@ from src.core.YamlConfig import YamlConfigManager, DEFAULT_APP_CONFIG
 from pathlib import Path
 from src.network.MinecraftLan import poll_minecraft_lan_once
 from src.gui.main_window.Handlers import log_message
-from src.tools.LogTrimmer import LogTrimmer
 from src.utils.LogManager import get_logger
 
 logger = get_logger()
@@ -48,7 +47,6 @@ def post_ui_initialize(window):
     initialize_timers(window)
     # 移除同步的端口查询，完全依赖后台异步轮询
     # perform_initial_port_query(window) 
-    start_log_trimmer(window)
 
 def initialize_managers(window):
     """初始化核心管理器"""
@@ -71,17 +69,6 @@ def initialize_timers(window):
     window.ping_timer = QTimer(window)
     window.ping_timer.timeout.connect(lambda: window.load_ping_values())
     window.ping_timer.start(3000)
-
-def start_log_trimmer(window):
-    """启动日志裁剪线程"""
-    try:
-        logs_size = (window.app_config or {}).get("app", {}).get("logs_size", "1MB")
-        docs_logs = os.path.join(os.path.expanduser('~'), 'Documents', 'MitaHillFRP', 'logs')
-        log_path = os.path.join(docs_logs, "app.log")
-        window.log_trimmer = LogTrimmer(log_path, logs_size)
-        window.log_trimmer.start()
-    except Exception as e:
-        print(f"Error starting LogTrimmer: {e}")
 
 def perform_initial_port_query(window):
     """执行初始的Minecraft端口查询"""

@@ -1,6 +1,6 @@
 import os
 import sys
-from PySide6.QtCore import QTimer
+from PySide6.QtCore import QTimer, qInstallMessageHandler, QtMsgType
 from PySide6.QtWidgets import QMessageBox
 
 from src.utils.PathUtils import get_resource_path
@@ -10,9 +10,32 @@ from pathlib import Path
 from src.network.MinecraftLan import poll_minecraft_lan_once
 from src.gui.main_window.Handlers import log_message
 from src.tools.LogTrimmer import LogTrimmer
+from src.utils.LogManager import get_logger
+
+logger = get_logger()
+
+def qt_message_handler(mode, context, message):
+    """捕获 Qt 内部消息并记录到日志"""
+    try:
+        msg = message
+        # 过滤一些常见的无害警告以减少日志噪音
+        if "QWindowsWindow::setGeometry" in msg:
+            return
+
+        if mode == QtMsgType.QtInfoMsg:
+            logger.info(f"[Qt] {msg}")
+        elif mode == QtMsgType.QtWarningMsg:
+            logger.warning(f"[Qt] {msg}")
+        elif mode == QtMsgType.QtCriticalMsg:
+            logger.error(f"[Qt] {msg}")
+        elif mode == QtMsgType.QtFatalMsg:
+            logger.critical(f"[Qt Fatal] {msg}")
+    except:
+        pass
 
 def pre_ui_initialize(window):
     """在UI设置之前进行初始化"""
+    qInstallMessageHandler(qt_message_handler)
     initialize_managers(window)
     load_configuration(window)
     

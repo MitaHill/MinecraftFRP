@@ -323,7 +323,31 @@ def _launch_main_app(info: dict) -> int:
         # 设置工作目录为可执行文件所在目录，避免路径问题
         cwd = app_path.parent
         # 添加启动参数 --launched-by-launcher 以便主程序验证
-        subprocess.Popen([str(app_path), "--launched-by-launcher"], cwd=str(cwd))
+        process = subprocess.Popen([str(app_path), "--launched-by-launcher"], cwd=str(cwd))
+        
+        # [NEW] 启动后监控几秒，检测是否发生“启动即崩”
+        try:
+            exit_code = process.wait(timeout=5)
+            # 如果5秒内进程结束了
+            if exit_code != 0:
+                msg = f"主程序异常退出 (Exit Code: {exit_code})。\n这通常意味着缺少运行库、文件损坏或系统不兼容。\n请查看 logs 目录下的日志或联系开发者。"
+                _safe_log(msg)
+                try:
+                    import ctypes
+                    ctypes.windll.user32.MessageBoxW(0, msg, "MinecraftFRP 启动失败", 16)
+                except:
+                    pass
+                return 1
+            else:
+                # 5秒内正常退出？这通常也不对（除非只是为了检查版本？）
+                # 但如果是 GUI 程序，正常是不退出的。除非是单例检查退出了？
+                # 暂时认为是异常，或者用户手动关闭太快
+                pass
+        except subprocess.TimeoutExpired:
+            # 5秒后还在运行，说明启动成功
+            _safe_log("Main app started successfully (running > 5s).")
+            return 0
+            
         return 0
     except Exception as e:
         _safe_log(f"launch app error: {e}")

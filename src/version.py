@@ -3,10 +3,10 @@ Application version information.
 This file is auto-generated during build process.
 """
 
-VERSION = "0.5.85"
-GIT_HASH = "9c1440b"
-GIT_BRANCH = "server-integration"
-BUILD_DATE = "2025-12-11T21:20:13.740691Z"
+VERSION = "0.5.92"
+GIT_HASH = "5da0855"
+GIT_BRANCH = "small-fixing"
+BUILD_DATE = "2025-12-25T23:28:23.614170Z"
 
 def get_version_info():
     """Get formatted version information."""

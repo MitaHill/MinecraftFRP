@@ -65,9 +65,8 @@ ChangesEnvironment=no
 ; 无需额外配置，AppId 一致即可实现覆盖安装
 
 [Languages]
-; 使用默认英语（Inno Setup 6 不包含简体中文）
-; 如需中文，需从 https://jrsoftware.org/files/istrans/ 下载 ChineseSimplified.isl
-Name: "english"; MessagesFile: "compiler:Default.isl"
+; 使用简体中文语言文件
+Name: "chinesesimplified"; MessagesFile: "src_builder\languages\ChineseSimplified.isl"
 
 [Tasks]
 Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: "快捷方式:"; Flags: unchecked

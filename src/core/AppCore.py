@@ -113,6 +113,23 @@ class AppCore(QObject):
 
     def cleanup(self):
         """清理资源"""
-        if self.security_thread and self.security_thread.isRunning():
-            self.security_thread.quit()
-            self.security_thread.wait()
+        try:
+            if self.security_thread:
+                # 检查线程是否仍在运行，需捕获 RuntimeError (C++对象已删除)
+                try:
+                    if self.security_thread.isRunning():
+                        self.security_thread.quit()
+                        self.security_thread.wait()
+                except RuntimeError:
+                    pass # 对象已销毁，无需处理
+
+            if self.ad_thread:
+                try:
+                    if self.ad_thread.isRunning():
+                        self.ad_thread.quit()
+                        self.ad_thread.wait()
+                except RuntimeError:
+                    pass
+                    
+        except Exception as e:
+            logger.error(f"AppCore cleanup error: {e}")

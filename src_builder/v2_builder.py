@@ -8,6 +8,7 @@ import zipfile
 import shutil
 from pathlib import Path
 from typing import Optional, Tuple
+import subprocess
 
 from .config import BuildConfig
 from .builder import NuitkaBuilder
@@ -89,182 +90,216 @@ class V2Builder:
         return True
     
     def build_launcher(self) -> bool:
-        """构建启动器"""
+        """构建启动器 (使用 PyInstaller)"""
         print("\n" + "="*80)
-        print("🔧 Building Launcher (launcher.exe)")
+        print("🔧 Building Launcher with PyInstaller (Launcher.exe)")
         print("="*80)
         
         start_time = time.time()
-        launcher_build_dir = self.build_dir / "temp_launcher"
-        launcher_build_dir.mkdir(parents=True, exist_ok=True)
         
-        launcher_script = Path("src_launcher") / "launcher.py"
-        
+        launcher_script = Path("src_launcher/launcher.py")
+        app_name = "Launcher"
+        icon_path = Path("src/assets/logo.ico")
+        build_path = self.build_dir / "launcher_build" # 独立的构建缓存
+
         if not launcher_script.exists():
-            print(f"❌ ERROR: Launcher script not found: {launcher_script}")
+            print(f"❌ 错误: 启动器脚本未找到: {launcher_script}", file=sys.stderr)
             return False
-        
-        print(f"⏳ Building launcher from {launcher_script}...")
-        print(f"📁 Build directory: {launcher_build_dir.absolute()}")
-        
-        # 构建命令 - 单文件、去除 PySide6 插件，静默后台
-        cmd = [
-            sys.executable, "-m", "nuitka",
-            "--standalone",
-            "--onefile",
-            f"--output-dir={launcher_build_dir}",
-            "--output-filename=launcher.exe",
-            "--nofollow-import-to=OpenSSL",
-            "--nofollow-import-to=cryptography",
-            "--windows-console-mode=disable",
-            "--company-name=MitaHill",
-            "--product-name=MinecraftFRP Launcher",
-            "--file-version=" + self.config.get_version_string(),
-            "--product-version=" + self.config.get_version_string(),
-            "--copyright=Copyright (c) 2025 MitaHill",
-            "--assume-yes-for-downloads",
-            "--disable-cache=ccache",
+
+        icon_option = f"--icon={icon_path}" if icon_path.exists() else ""
+
+        # 清理旧的构建文件
+        print("🧹 正在清理旧的启动器构建文件...")
+        if self.dist_dir.exists():
+            for f in self.dist_dir.glob(f"{app_name}*"):
+                print(f"  - 删除 {f}")
+                if f.is_dir():
+                    shutil.rmtree(f)
+                else:
+                    f.unlink()
+        if build_path.exists():
+            print(f"  - 删除目录 {build_path}")
+            shutil.rmtree(build_path)
+
+        print(f"\n🚀 开始使用 PyInstaller 构建 {app_name}.exe (onedir mode)...")
+
+        command = [
+            sys.executable, "-m", "PyInstaller",
+            "--noconfirm", "--onedir", "--windowed",
+            f"--name={app_name}",
+            icon_option,
+            f"--distpath={self.dist_dir}",
+            f"--workpath={build_path}",
+            f"--specpath={build_path}",
+            "--contents-directory=launcher_internal", 
+            str(launcher_script)
         ]
+        command = [arg for arg in command if arg]
 
-        # 可选：设置EXE图标
-        ico = Path("base") / "logo.ico"
-        if ico.exists():
-            cmd.append(f"--windows-icon-from-ico={ico}")
+        print(" ".join(command))
 
-        cmd.append(str(launcher_script))
-        
-        if not self.args.fast:
-            cmd.append("--lto=yes")
-        
-        print("📝 Nuitka command:")
-        print("   " + " ".join(cmd))
-        
-        # 执行构建
-        import subprocess
-        print("\n▶️  Starting Nuitka compilation...")
-        result = subprocess.run(cmd, capture_output=False)
-        
-        if result.returncode != 0:
-            print(f"❌ ERROR: Launcher build failed with exit code {result.returncode}")
+        try:
+            result = subprocess.run(
+                command, check=True, capture_output=True, text=True, encoding='utf-8'
+            )
+            print(result.stdout)
+            
+            # check dist/Launcher directory
+            launcher_dist_dir = self.dist_dir / app_name
+            launcher_exe = launcher_dist_dir / f"{app_name}.exe"
+            
+            if not launcher_exe.exists():
+                print("❌ ERROR: Launcher.exe not found in dist/Launcher/ after build!", file=sys.stderr)
+                return False
+            
+            self.launcher_exe_path = launcher_exe
+            self.launcher_dir = launcher_dist_dir
+            self.launcher_build_time = time.time() - start_time
+            
+            exe_size_mb = launcher_exe.stat().st_size / (1024 * 1024)
+            print(f"✅ Launcher built successfully in {self.launcher_build_time:.2f}s ({exe_size_mb:.2f} MB)")
+            print(f"   Location: {self.launcher_exe_path}")
+            
+            return True
+            
+        except (subprocess.CalledProcessError, FileNotFoundError) as e:
+            print("❌ ERROR: Launcher build failed!", file=sys.stderr)
+            if isinstance(e, subprocess.CalledProcessError):
+                print(e.stdout, file=sys.stdout)
+                print(e.stderr, file=sys.stderr)
+            else:
+                print("PyInstaller 未安装或未在 PATH 中。请运行: pip install pyinstaller", file=sys.stderr)
             return False
-        
-        # 查找生成的exe（onefile 输出在构建目录根）
-        launcher_exe = launcher_build_dir / "launcher.exe"
-        print(f"\n🔍 Looking for launcher.exe at: {launcher_exe.absolute()}")
-        if not launcher_exe.exists():
-            print(f"❌ ERROR: launcher.exe not found in build directory!")
-            print(f"📁 Contents of {launcher_build_dir}:")
-            for item in launcher_build_dir.iterdir():
-                print(f"   - {item.name}")
-            return False
-        
-        exe_size_mb = launcher_exe.stat().st_size / (1024 * 1024)
-        print(f"✅ Found launcher.exe ({exe_size_mb:.2f} MB)")
-        
-        self.launcher_exe_path = launcher_exe
-        self.launcher_build_time = time.time() - start_time
-        
-        print(f"✅ Launcher built successfully in {self.launcher_build_time:.2f}s")
-        print(f"   Location: {self.launcher_exe_path}")
-        
-        return True
-    
+
     def build_main_app(self) -> bool:
-        """构建主应用（目录形式，非单文件）"""
+        """构建主应用（使用 PyInstaller + 防破解加密）"""
         print("\n" + "="*80)
-        print("🔧 Building Main Application (Directory Mode)")
+        print("🔧 Building Main Application with PyInstaller (Secured)")
         print("="*80)
         
         start_time = time.time()
         current_version = self.config.get_version_string()
-        main_build_dir = self.build_dir / f"temp_main_app"
-        main_build_dir.mkdir(parents=True, exist_ok=True)
+        
+        # PyInstaller 工作目录
+        work_path = self.build_dir / "temp_main_app_build"
+        # PyInstaller 输出目录 (dist)
+        dist_path = self.build_dir / "temp_main_app_dist"
+        
+        # 清理
+        if work_path.exists(): shutil.rmtree(work_path)
+        if dist_path.exists(): shutil.rmtree(dist_path)
+        
+        work_path.mkdir(parents=True, exist_ok=True)
+        dist_path.mkdir(parents=True, exist_ok=True)
+        
+        # 生成加密密钥 (16 chars)
+        import secrets
+        import string
+        key = ''.join(secrets.choice(string.ascii_letters + string.digits) for _ in range(16))
+        print(f"🔐 Generated Bytecode Encryption Key: {key}")
+        
+        app_name = "MinecraftFRP"
+        script_path = "app.py"
+        icon_path = Path("base/logo.ico")
         
         print(f"⏳ Building main application...")
-        print(f"📁 Build directory: {main_build_dir.absolute()}")
         
-        # 构建命令（目录模式，不是onefile）
+        # 构建 PyInstaller 命令
         cmd = [
-            sys.executable, "-m", "nuitka",
-            "--standalone",  # 只standalone，不onefile
-            f"--output-dir={main_build_dir}",
-            "--output-filename=MinecraftFRP.exe",
-            "--enable-plugin=pyside6",
-            "--include-data-files=config/app_config.yaml=config/app_config.yaml",
-            "--windows-console-mode=disable",
-            "--company-name=MitaHill",
-            "--product-name=MinecraftFRP",
-            "--file-version=" + current_version,
-            "--product-version=" + current_version,
-            "--copyright=Copyright (c) 2025 MitaHill",
-            "--assume-yes-for-downloads",
-            "--disable-cache=ccache",
+            sys.executable, "-m", "PyInstaller",
+            "--noconfirm",
+            "--onedir",
+            "--windowed",  # 无控制台
+            f"--name={app_name}",
+            f"--key={key}",  # 字节码加密
+            f"--workpath={work_path}",
+            f"--distpath={dist_path}",
+            "--clean",
+            
+            # 数据文件 (Windows separators ;)
+            # base 目录 -> base
+            "--add-data=base;base",
+            # 配置文件
+            "--add-data=config/app_config.yaml;config",
+            "--add-data=config/special_nodes.json;config", 
+             
+            # 隐藏导入 (防止漏掉)
+            "--hidden-import=requests",
+            "--hidden-import=yaml",
+            "--hidden-import=PySide6",
+            "--hidden-import=packaging",
+            "--hidden-import=paramiko",
+            
+            # 排除不必要的模块 (减少体积/干扰)
+            "--exclude-module=tkinter",
+            "--exclude-module=matplotlib",
+            
+            # 版本信息 (如果有version file的话，这里暂时略过，或者可以动态生成一个version file)
         ]
-
-        ico = Path("base") / "logo.ico"
-        if ico.exists():
-            cmd.append(f"--windows-icon-from-ico={ico}")
-
-        cmd.append("app.py")
         
-        if not self.args.fast:
-            cmd.append("--lto=yes")
+        if icon_path.exists():
+            cmd.append(f"--icon={icon_path}")
+            
+        cmd.append(script_path)
         
-        print("📝 Nuitka command:")
-        print("   " + " ".join(cmd))
+        print("📝 PyInstaller command:")
+        # Hide key in logs
+        log_cmd = [c if not c.startswith("--key=") else "--key=********" for c in cmd]
+        print("   " + " ".join(log_cmd))
         
         # 执行构建
         import subprocess
-        print("\n▶️  Starting Nuitka compilation...")
-        result = subprocess.run(cmd, capture_output=False)
-        
-        if result.returncode != 0:
-            print(f"❌ ERROR: Main app build failed with exit code {result.returncode}")
+        print("\n▶️  Starting PyInstaller compilation...")
+        try:
+            result = subprocess.run(cmd, check=True, text=True, capture_output=True, encoding='utf-8')
+            print("✅ PyInstaller completed successfully.")
+            # print(result.stdout) # Output might be too long, show only if needed or error
+        except subprocess.CalledProcessError as e:
+            print(f"❌ ERROR: PyInstaller failed with code {e.returncode}")
+            print("STDERR:", e.stderr)
             return False
-        
-        # 查找生成的目录
-        dist_dirs = list(main_build_dir.glob("*.dist"))
-        if not dist_dirs:
-            print(f"❌ ERROR: No .dist directory found in {main_build_dir}!")
-            return False
-        
-        # 重命名为 MitaHill-FRP-APP
-        source_dist = dist_dirs[0]
-        target_dist = main_build_dir / "MitaHill-FRP-APP"
-        
-        if target_dist.exists():
-            shutil.rmtree(target_dist)
             
-        source_dist.rename(target_dist)
-        app_dist = target_dist
+        # 处理输出目录
+        # PyInstaller 输出在 dist_path / app_name
+        generated_dir = dist_path / app_name
         
-        print(f"\n🔍 Renamed {source_dist.name} to MitaHill-FRP-APP")
-        
-        if not app_dist.exists() or not app_dist.is_dir():
-            print(f"❌ ERROR: MitaHill-FRP-APP directory not found!")
-            print(f"📁 Contents of {main_build_dir}:")
-            for item in main_build_dir.iterdir():
-                print(f"   - {item.name}")
+        if not generated_dir.exists():
+            print(f"❌ ERROR: Output directory not found: {generated_dir}")
             return False
+            
+        # 我们需要将其重命名/移动为 MitaHill-FRP-APP 并在 build/temp_main_app 下
+        # 为了兼容后续 create_app_package 的逻辑 (它寻找 self.main_app_dir)
         
-        # 检查主程序exe
-        main_exe = app_dist / "MinecraftFRP.exe"
+        target_parent = self.build_dir / "temp_main_app"
+        target_dir = target_parent / "MitaHill-FRP-APP"
+        
+        if target_parent.exists(): shutil.rmtree(target_parent)
+        target_parent.mkdir(parents=True, exist_ok=True)
+        
+        print(f"📋 Moving build artifact to {target_dir}...")
+        try:
+            shutil.move(str(generated_dir), str(target_dir))
+        except Exception as e:
+            print(f"❌ ERROR: Failed to move output directory: {e}")
+            return False
+            
+        self.main_app_dir = target_dir
+        
+        # 验证
+        main_exe = self.main_app_dir / f"{app_name}.exe"
         if not main_exe.exists():
-            print(f"❌ ERROR: MinecraftFRP.exe not found in MitaHill-FRP-APP!")
+            print(f"❌ ERROR: Main executable not found: {main_exe}")
             return False
-        
+            
         exe_size_mb = main_exe.stat().st_size / (1024 * 1024)
-        print(f"✅ Found MinecraftFRP.exe ({exe_size_mb:.2f} MB)")
+        print(f"✅ Found {main_exe.name} ({exe_size_mb:.2f} MB)")
         
-        # 统计文件数量
-        file_count = sum(1 for _ in app_dist.rglob('*') if _.is_file())
+        # 统计文件
+        file_count = sum(1 for _ in self.main_app_dir.rglob('*') if _.is_file())
         print(f"✅ MitaHill-FRP-APP contains {file_count} files")
         
-        self.main_app_dir = app_dist
         self.main_build_time = time.time() - start_time
-        
         print(f"✅ Main app built successfully in {self.main_build_time:.2f}s")
-        print(f"   Location: {self.main_app_dir}")
         
         return True
     
@@ -288,12 +323,10 @@ class V2Builder:
         print(f"⏳ Organizing files to {output_dir}...")
         
         try:
-            # 1. 复制 launcher.exe
-            launcher_dest = output_dir / "launcher.exe"
-            shutil.copy2(self.launcher_exe_path, launcher_dest)
-            print(f"✅ Copied launcher.exe")
-
-            # 1.5 单文件模式下无依赖目录，跳过
+            # 1. 复制 launcher (目录模式)
+            print(f"📋 Copying launcher from {self.launcher_dir} to {output_dir}")
+            shutil.copytree(self.launcher_dir, output_dir, dirs_exist_ok=True)
+            print(f"✅ Copied Launcher directory contents")
             
             # 2. 复制主应用目录
             app_dest = output_dir / "MitaHill-FRP-APP"
@@ -316,11 +349,8 @@ class V2Builder:
             
             print(f"\n✅ Build output organized:")
             print(f"   Location: {output_dir}")
-            print(f"   - launcher.exe")
-            print(f"   - nuitka_launcher/ (if present)")
+            print(f"   - Launcher.exe")
             print(f"   - MitaHill-FRP-APP/ ({file_count} files)")
-            
-            # 注意: base/ 和 config/ 目录已经在项目根目录，Inno Setup 会直接读取
             
             return True
             
@@ -504,7 +534,7 @@ class V2Builder:
         print("="*80)
         
         # 生成发布说明：优先使用 --update-messages/-u 指定的内容；否则生成默认信息（不依赖 Git 提交范围）
-        if getattr(self.args, 'update_messages', None):
+        if getattr(self.args, 'update-messages', None):
             release_notes = self.args.update_messages
             print("INFO: Using manual update messages (-u/--update-messages). Ignoring Git logs.")
         else:

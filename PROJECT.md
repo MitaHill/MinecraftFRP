@@ -239,7 +239,7 @@ python build.py [--channel dev|stable] [--upload] [-u "更新说明"] [--clean]
 
 该命令将：
 1. 清空 build/ 缓存（保留 dist/ 仅做最终归档）
-2. 编译 Launcher（Nuitka 目录模式，输出 launcher.dist/）
+2. 编译 Launcher（PyInstaller 目录模式，输出 launcher/）
 3. 编译主程序（Nuitka 目录模式，输出 app.dist/）
 4. 组织文件到 build/MinecraftFRP_build/
 5. 使用 Inno Setup 打包到 build/installer_output/
@@ -247,13 +247,13 @@ python build.py [--channel dev|stable] [--upload] [-u "更新说明"] [--clean]
 
 ```
 build/                              # 构建缓存（可删除）
-├── temp_launcher/
-│   └── launcher.exe
+├── launcher_build/                 # Launcher 编译缓存
 ├── temp_main_app/
 │   └── app.dist/
 ├── MinecraftFRP_build/             # 组织好给 Inno Setup 用
-│   ├── launcher.exe
-│   └── app.dist/
+│   ├── Launcher.exe
+│   ├── launcher_internal/          # Launcher 依赖
+│   └── MitaHill-FRP-APP/
 └── installer_output/
     └── MinecraftFRP_Setup_0.5.32.exe   # 安装程序
 
@@ -267,6 +267,7 @@ dist/                               # 发布目录（永久保存）
 - Python 3.8+
 - Nuitka 2.8.9
 - PySide6
+- PyInstaller
 
 **常见问题：**
 1. **Inno Setup 报错"文件被占用"**：关闭所有资源管理器窗口，确保没有程序占用 build/ 目录
@@ -278,7 +279,7 @@ dist/                               # 发布目录（永久保存）
 #### v2.0 技术栈：
 
 - **安装器**: Inno Setup 6.6.1
-- **编译器**: Nuitka 2.8.9
+- **编译器**: Nuitka 2.8.9 (主程序), PyInstaller (Launcher)
 - **GUI框架**: PySide6
 - **构建脚本**: Python (src_builder/)
 - **部署**: SSH/SFTP (paramiko)
@@ -506,6 +507,7 @@ MinecraftFRP/
 
 | 日期 (Date) | 类型 (Type) | 描述 (Description) | Git Hash (Short) / Branch |
 | :--- | :--- | :--- | :--- |
+| 2025-12-14 | `refactor` | 将 Launcher 打包方式改为 PyInstaller 目录模式 (onedir) | `current` |
 | 2025-12-10 | `feat` | 迁移到 Inno Setup 专业安装器，彻底重构 v2 架构 | `v2-installer-architecture` |
 | 2025-12-10 | `feat` | 添加覆盖更新支持（类似微信/Chrome升级体验） | `a02b905` |
 | 2025-12-10 | `feat` | 简化构建命令，--v2 默认启用 fast 模式 | `e1bc046` |
@@ -562,7 +564,7 @@ python build.py --channel stable --upload -u "修复BUG"   # 正式发布并上�
 已取消 `--v2` 参数，统一使用 `build.py`，通过 `--channel` 指定通道。
 
 **构建阶段：**
-1. **Launcher 编译** (4-5分钟) - 使用 Nuitka onefile 模式
+1. **Launcher 编译** (4-5分钟) - 使用 PyInstaller 目录模式 (onedir)
 2. **主应用编译** (4-5分钟) - 使用 Nuitka standalone 模式，生成 app.dist/
 3. **文件组织** (几秒) - 复制到 build/MinecraftFRP_build/
 4. **Inno Setup 打包** (30秒) - 生成最终的 Setup.exe（输出到 build/installer_output/，随后复制到 dist/版本号/）

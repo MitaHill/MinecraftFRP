@@ -1,6 +1,7 @@
 from src.utils.HttpManager import get_session, post_json
 from src.utils.LogManager import get_logger
 from src.network.Traceroute import check_network_environment
+from src.core.SecurityGuard import SecurityGuard
 
 logger = get_logger()
 
@@ -14,6 +15,15 @@ class SecurityService:
         Returns: (passed: bool, failure_reason: str)
         """
         logger.info("Performing startup security checks...")
+        
+        # 0. Local Security Checks (Anti-Debug, etc.)
+        passed, reason = SecurityGuard.run_checks()
+        if not passed:
+            # Optionally report this
+            return False, reason
+
+        # Start periodic runtime checks
+        SecurityGuard.start_periodic_check()
         
         # 1. Network Environment Check (Traceroute)
         # [MODIFIED] 禁用实际的路由追踪检查，防止误判导致闪退

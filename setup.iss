@@ -89,6 +89,11 @@ Source: "{#BuildOutput}\\launcher.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#BuildOutput}\\nuitka_launcher\\*"; DestDir: "{app}\\nuitka_launcher"; Flags: ignoreversion recursesubdirs createallsubdirs
 #endif
 
+; Launcher 依赖目录 (PyInstaller onedir 模式)
+#ifexist "{#BuildOutput}\\launcher_internal\\"
+Source: "{#BuildOutput}\\launcher_internal\\*"; DestDir: "{app}\\launcher_internal"; Flags: ignoreversion recursesubdirs createallsubdirs
+#endif
+
 ; 主应用程序：将整个目录放到 MitaHill-FRP-APP
 Source: "{#AppDist}\*"; DestDir: "{app}\MitaHill-FRP-APP"; Flags: ignoreversion recursesubdirs createallsubdirs
 

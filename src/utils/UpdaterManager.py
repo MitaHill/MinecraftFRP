@@ -1,101 +1,83 @@
-"""
-UpdaterManager - 管理updater程序的释放和调用
-"""
-import os
 import sys
+import os
 import shutil
 import logging
-from pathlib import Path
-from typing import Optional
+from src.utils.PathUtils import get_resource_path
 
 logger = logging.getLogger(__name__)
 
 class UpdaterManager:
-    """管理updater程序的提取和部署"""
-    
     @staticmethod
-    def is_compiled() -> bool:
-        """检测程序是否是编译后的可执行文件"""
-        # Nuitka编译后 __file__ 会指向实际位置，但sys.argv[0]会是.exe
-        # PyInstaller会设置sys._MEIPASS
-        return (
-            getattr(sys, 'frozen', False) or  # PyInstaller
-            hasattr(sys, '_MEIPASS') or       # PyInstaller
-            sys.argv[0].endswith('.exe')      # Nuitka
-        )
-    
-    @staticmethod
-    def get_updater_embedded_path() -> str:
-        """获取内嵌updater.exe的路径"""
-        from src.utils.PathUtils import get_resource_path
-        return get_resource_path("updater.exe")
-    
-    @staticmethod
-    def get_runtime_updater_path() -> str:
-        """获取运行时updater.exe应该存放的路径（主程序同目录）"""
-        if UpdaterManager.is_compiled():
-            # 编译后，使用可执行文件所在目录
-            exe_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
+    def get_updater_path() -> str:
+        """获取更新程序（updater.exe）的路径"""
+        if getattr(sys, 'frozen', False):
+            # 编译后的环境
+            base_path = os.path.dirname(sys.executable)
+            return os.path.join(base_path, "updater.exe")
         else:
-            # 开发环境，使用项目根目录
-            exe_dir = os.path.dirname(os.path.abspath(__file__))
-            exe_dir = os.path.join(exe_dir, "..", "..")
-            exe_dir = os.path.abspath(exe_dir)
-        
-        return os.path.join(exe_dir, "updater.exe")
-    
+            # 开发环境
+            return get_resource_path("updater/updater.exe")
+
     @staticmethod
-    def extract_updater() -> Optional[str]:
+    def extract_updater():
         """
-        将updater从程序内部提取到运行目录
-        返回：提取后的updater路径，失败返回None
+        如果是编译版本，将内嵌的 updater.exe 提取到与主程序相同的目录。
         """
-        if not UpdaterManager.is_compiled():
-            logger.info("开发环境，跳过updater提取")
-            return None
-        
+        if not getattr(sys, 'frozen', False):
+            logger.info("在开发模式下，跳过提取更新程序。")
+            return
+
+        logger.info("检查更新程序是否存在...")
+        updater_src_path = get_resource_path("updater/updater.exe")
+        updater_dest_path = UpdaterManager.get_updater_path()
+
+        if not os.path.exists(updater_src_path):
+            logger.warning("在资源文件中找不到更新程序，无法提取。")
+            return
+
+        # 仅在目标文件不存在或内容不同时提取
         try:
-            embedded_path = UpdaterManager.get_updater_embedded_path()
-            runtime_path = UpdaterManager.get_runtime_updater_path()
+            if os.path.exists(updater_dest_path):
+                # 比较文件哈希值以决定是否覆盖
+                import hashlib
+                
+                def get_file_hash(path):
+                    sha256 = hashlib.sha256()
+                    with open(path, 'rb') as f:
+                        while chunk := f.read(8192):
+                            sha256.update(chunk)
+                    return sha256.hexdigest()
+
+                src_hash = get_file_hash(updater_src_path)
+                dest_hash = get_file_hash(updater_dest_path)
+
+                if src_hash == dest_hash:
+                    logger.info("更新程序已是最新版本，无需提取。")
+                    return
+                else:
+                    logger.info("检测到更新程序版本不同，准备覆盖。")
             
-            # 检查内嵌updater是否存在
-            if not os.path.exists(embedded_path):
-                logger.error(f"内嵌updater不存在: {embedded_path}")
-                return None
-            
-            # 如果运行时updater已存在且是最新的，跳过
-            if os.path.exists(runtime_path):
-                embedded_size = os.path.getsize(embedded_path)
-                runtime_size = os.path.getsize(runtime_path)
-                if embedded_size == runtime_size:
-                    logger.info("Updater已是最新版本，跳过提取")
-                    return runtime_path
-            
-            # 复制updater到运行目录
-            logger.info(f"提取updater: {embedded_path} -> {runtime_path}")
-            shutil.copy2(embedded_path, runtime_path)
-            
-            # 设置可执行权限（Unix系统需要）
-            try:
-                os.chmod(runtime_path, 0o755)
-            except:
-                pass
-            
-            logger.info("Updater提取成功")
-            return runtime_path
-            
-        except Exception as e:
-            logger.error(f"提取updater失败: {e}", exc_info=True)
-            return None
-    
+            logger.info(f"正在提取更新程序到: {updater_dest_path}")
+            shutil.copy2(updater_src_path, updater_dest_path)
+            logger.info("更新程序提取成功。")
+
+        except (IOError, OSError, shutil.Error) as e:
+            logger.error(f"提取更新程序时发生错误: {e}", exc_info=True)
+            # 根据需要，可以决定是否抛出异常或让程序继续
+            # raise  # 如果这是一个关键失败
+
     @staticmethod
     def cleanup_old_updater():
-        """清理旧的临时updater（如果存在）"""
-        import tempfile
-        old_updater = os.path.join(tempfile.gettempdir(), "mcfrp_updater.exe")
-        if os.path.exists(old_updater):
+        """
+        清理旧的更新程序文件（例如 updater.exe.old）。
+        """
+        updater_path = UpdaterManager.get_updater_path()
+        old_updater_path = updater_path + ".old"
+        
+        if os.path.exists(old_updater_path):
+            logger.info(f"找到旧的更新程序文件: {old_updater_path}，正在尝试删除...")
             try:
-                os.remove(old_updater)
-                logger.info("已清理旧的临时updater")
-            except Exception as e:
-                logger.warning(f"清理旧updater失败: {e}")
+                os.remove(old_updater_path)
+                logger.info("旧的更新程序文件已成功删除。")
+            except (IOError, OSError) as e:
+                logger.warning(f"删除旧的更新程序文件失败: {e}")

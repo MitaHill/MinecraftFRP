@@ -9,5 +9,5 @@ ssh:
   version_json_path: /root/chfs/share/MinecraftFRP/Data/version.json
 version:
   major: 0
-  minor: 5
-  patch: 92
+  minor: 6
+  patch: 3

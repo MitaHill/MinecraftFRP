@@ -15,6 +15,7 @@ import requests
 import subprocess
 import hashlib
 from pathlib import Path
+import locale
 
 # 配置（尽量避免硬编码，保留可替换点）
 VERSION_JSON_URL = "https://z.clash.ink/chfs/shared/MinecraftFRP/Data/version.json"
@@ -92,13 +93,29 @@ def calculate_sha256(file_path: str) -> str:
 
 
 def _load_install_info() -> dict:
+    """
+    加载安装信息JSON文件，增加编码容错。
+    首先尝试UTF-8，如果失败，则回退到系统默认编码。
+    """
+    if not CONFIG_FILE.exists():
+        return {}
+    
     try:
-        if CONFIG_FILE.exists():
-            with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
+        # 1. 尝试用 UTF-8 读取
+        with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except UnicodeDecodeError as e_utf8:
+        _safe_log(f"load_install_info with utf-8 failed: {e_utf8}. Retrying with system default encoding...")
+        try:
+            # 2. 回退到系统默认编码
+            with open(CONFIG_FILE, 'r', encoding=None) as f:
                 return json.load(f)
-    except Exception as e:
-        _safe_log(f"load_install_info error: {e}")
-    return {}
+        except Exception as e_fallback:
+            _safe_log(f"load_install_info with fallback encoding failed: {e_fallback}")
+            return {}
+    except Exception as e_general:
+        _safe_log(f"load_install_info error: {e_general}")
+        return {}
 
 
 def _save_install_info(info: dict):
@@ -297,7 +314,11 @@ def _apply_pending_update(info: dict) -> bool:
     return False
 
 
-def _launch_main_app(info: dict) -> int:
+def _launch_main_app(info: dict) -> tuple[bool, int]:
+    """
+    启动主程序，并监控其初始状态。
+    返回 (是否成功启动, 退出码)
+    """
     app_path_str = info.get('app_path', '')
     app_path = Path(app_path_str) if app_path_str else None
     
@@ -318,41 +339,63 @@ def _launch_main_app(info: dict) -> int:
                 
     if not app_path or not app_path.exists():
         _safe_log(f"main app missing: {app_path}")
-        return 1
+        return False, -1
+
     try:
         # 设置工作目录为可执行文件所在目录，避免路径问题
         cwd = app_path.parent
         # 添加启动参数 --launched-by-launcher 以便主程序验证
         process = subprocess.Popen([str(app_path), "--launched-by-launcher"], cwd=str(cwd))
         
-        # [NEW] 启动后监控几秒，检测是否发生“启动即崩”
+        # 启动后监控几秒，检测是否发生“启动即崩”
         try:
             exit_code = process.wait(timeout=5)
-            # 如果5秒内进程结束了
-            if exit_code != 0:
-                msg = f"主程序异常退出 (Exit Code: {exit_code})。\n这通常意味着缺少运行库、文件损坏或系统不兼容。\n请查看 logs 目录下的日志或联系开发者。"
-                _safe_log(msg)
-                try:
-                    import ctypes
-                    ctypes.windll.user32.MessageBoxW(0, msg, "MinecraftFRP 启动失败", 16)
-                except:
-                    pass
-                return 1
-            else:
-                # 5秒内正常退出？这通常也不对（除非只是为了检查版本？）
-                # 但如果是 GUI 程序，正常是不退出的。除非是单例检查退出了？
-                # 暂时认为是异常，或者用户手动关闭太快
-                pass
+            # 如果5秒内进程结束了，说明启动失败
+            _safe_log(f"Main app exited prematurely with code: {exit_code} (Hex: {hex(exit_code)})")
+            return False, exit_code
         except subprocess.TimeoutExpired:
             # 5秒后还在运行，说明启动成功
             _safe_log("Main app started successfully (running > 5s).")
-            return 0
+            return True, 0
             
-        return 0
     except Exception as e:
         _safe_log(f"launch app error: {e}")
-        return 1
+        return False, -1
 
+
+def _show_fatal_error_dialog(exit_code: int):
+    """根据退出码显示包含常见解决方案的致命错误对话框"""
+    
+    hex_code = hex(exit_code)
+    # 将负数转为 Windows 风格的无符号十六进制
+    if exit_code < 0:
+        hex_code = hex(exit_code & 0xFFFFFFFF)
+
+    code_info = f"退出码: {exit_code} ({hex_code})"
+    specific_cause = ""
+
+    # 智能诊断
+    if exit_code in (-1073741819, -1073741515) or hex_code in ('0xc0000005', '0xc0000135'):
+        specific_cause = (
+            "智能诊断：检测到特定错误代码，这极有可能意味着您的系统缺少必要的【VC++ 运行库】。\n"
+            "请优先尝试解决方案 2。\n"
+        )
+
+    msg = (
+        f"MinecraftFRP 启动失败\n\n"
+        f"{specific_cause}"
+        f"启动器无法启动主程序。({code_info})\n"
+        "这可能是由以下常见原因导致的：\n\n"
+        "1. 杀毒软件拦截：请检查 Windows Defender 或其他杀毒软件的隔离区，将 MinecraftFRP.exe 和 frpc.exe 添加到信任列表。\n"
+        "2. 缺少运行库：请尝试安装微软官方的 VC++ 运行库。\n"
+        "3. 文件损坏：请尝试重新安装本工具。\n\n"
+        "如果问题仍然存在，请携带 Documents\\MitaHillFRP\\logs 目录下的日志文件联系开发者。"
+    )
+    try:
+        import ctypes
+        ctypes.windll.user32.MessageBoxW(0, msg, "MinecraftFRP 启动失败", 16) # MB_ICONERROR
+    except:
+        pass
 
 def main():
     try:
@@ -362,17 +405,16 @@ def main():
         _safe_log(f"Launcher started. Version: {current_version}, Channel: {local_channel}")
 
         # 1. 先处理待更新任务 (阻塞)
-        # 如果有已下载好的更新包，必须先询问安装，否则会覆盖刚下载的文件或逻辑混乱
         if _apply_pending_update(info):
             return 0
 
-        # 2. 立即启动主程序 (非阻塞，性能优化：最快速度启动)
-        # 无论是否有更新，先让用户能用上软件，提升体验
+        # 2. 立即启动主程序
         _safe_log("Launching main app...")
-        app_launched = (_launch_main_app(info) == 0)
+        app_launched, exit_code = _launch_main_app(info)
         
         if not app_launched:
-            _safe_log("Failed to launch main app. Exiting.")
+            _safe_log(f"Failed to launch main app with exit code {exit_code}.")
+            _show_fatal_error_dialog(exit_code)
             return 1
 
         # 3. 延迟500毫秒后再进行更新检查（避免阻塞主程序启动）
@@ -425,7 +467,6 @@ def main():
                 installer_path = _download_installer(installer_url, remote_version, target_channel)
                 
                 if installer_path and installer_path.exists():
-                    # 重新加载 info，防止主程序运行期间修改了它 (虽然主程序一般只读)
                     info = _load_install_info()
                     info['pending_update'] = {
                         'version': remote_version,
@@ -436,22 +477,14 @@ def main():
                     }
                     _save_install_info(info)
                     _safe_log("Update downloaded and pending for next startup.")
-                    
-                    # 可选：如果需要在下载完后提示用户 (即使主程序在运行)
-                    # try:
-                    #     import ctypes
-                    #     ctypes.windll.user32.MessageBoxW(0, "新版本已下载完成，将在下次启动时安装。", "MinecraftFRP 更新", 64)
-                    # except: pass
                 else:
                     _safe_log("Installer download failed")
             else:
                 _safe_log("Remote version missing installer_url")
         elif version_comparison == 0:
-            # 已是最新版本，清理旧的下载文件
             _safe_log("Already on latest version. Cleaning up old installers...")
             _cleanup_old_installers()
         else:
-            # 本地版本比远程新（不应该出现，但做防护）
             _safe_log(f"Local version ({current_version}) is newer than remote ({remote_version}). Skipping update.")
         
         return 0

@@ -1,95 +1,81 @@
 import os
-import shutil
-from threading import Lock
+import tempfile
 from pathlib import Path
-from src.utils.LogManager import get_logger
+import logging
 
-logger = get_logger()
+logger = logging.getLogger(__name__)
 
 class ConfigManager:
-    def __init__(self, filename="frpc.ini"):
-        self.mutex = Lock()
-        # 使用用户文档下的隐藏临时目录
-        docs_dir = Path.home() / "Documents" / "MitaHillFRP"
-        self.temp_dir = docs_dir / ".temp"
+    _temp_dir = None
+    _created_files = set()
+
+    @staticmethod
+    def get_temp_dir() -> Path:
+        """获取或创建用于存放临时配置文件的目录"""
+        if ConfigManager._temp_dir is None:
+            # 使用 appdirs 或一个更标准的位置可能更好，但目前保持简单
+            base_temp = Path(tempfile.gettempdir())
+            app_temp_dir = base_temp / "MitaHillFRP"
+            app_temp_dir.mkdir(parents=True, exist_ok=True)
+            ConfigManager._temp_dir = app_temp_dir
+        return ConfigManager._temp_dir
+
+    @staticmethod
+    def create_temp_config(content: str, user_id: str, suffix: str = ".ini") -> str:
+        """
+        在临时目录中创建一个唯一的配置文件。
+        返回配置文件的绝对路径 (字符串形式)。
+        """
+        temp_dir = ConfigManager.get_temp_dir()
+        # 使用 os.getpid() 和用户ID确保唯一性
+        unique_name = f"frpc_{os.getpid()}_{user_id}{suffix}"
+        
+        # 使用 Path 对象来处理路径，确保跨平台和 Unicode 安全性
+        config_path = temp_dir / unique_name
         
         try:
-            self.temp_dir.mkdir(parents=True, exist_ok=True)
-            # 在Windows上设置隐藏属性
-            if os.name == 'nt':
-                try:
-                    import ctypes
-                    FILE_ATTRIBUTE_HIDDEN = 0x02
-                    ctypes.windll.kernel32.SetFileAttributesW(str(self.temp_dir), FILE_ATTRIBUTE_HIDDEN)
-                except Exception:
-                    pass
-        except Exception as e:
-            logger.warning(f"创建临时目录失败: {e}")
+            # 使用 utf-8-sig 写入，可以帮助某些程序（尤其是Windows上的）正确识别UTF-8编码
+            config_path.write_text(content, encoding='utf-8-sig')
             
-        self.filename = self.temp_dir / filename
-
-    def create_config(self, host: str, port: int, token: str, local_port: int, remote_port: int, user_id: int) -> bool:
-        with self.mutex:
-            # 根据文件后缀生成对应的配置格式（INI 或 TOML）
-            # 注意：此处文件名可能通过 self.filename 获取后缀，或者默认 .ini
-            suffix = Path(self.filename).suffix or ".ini"
+            # 记录创建的文件以供清理
+            ConfigManager._created_files.add(config_path)
             
-            if suffix == ".toml":
-                config_content = (
-                    f"serverAddr = \"{host}\"\n"
-                    f"serverPort = {port}\n\n"
-                    f"[[proxies]]\n"
-                    f"name = \"mc_{remote_port}\"\n"
-                    f"type = \"tcp\"\n"
-                    f"localIP = \"127.0.0.1\"\n"
-                    f"localPort = {local_port}\n"
-                    f"remotePort = {remote_port}\n"
-                )
-            else:
-                config_content = f"""[common]
-server_addr={host}
-server_port={port}
-token={token}
-
-[map{user_id}]
-type=tcp
-local_ip=127.0.0.1
-local_port={local_port}
-remote_port={remote_port}
-"""
-            try:
-                # 为每次运行生成唯一的配置文件名，避免冲突
-                unique_name = f"frpc_{os.getpid()}_{user_id}{suffix}"
-                self.filename = self.temp_dir / unique_name
-                
-                with open(self.filename, "w", encoding="utf-8") as f:
-                    f.write(config_content)
-                return True
-            except Exception as e:
-                logger.error(f"写入配置文件出错: {e}")
-                return False
-
-    def delete_config(self) -> bool:
-        with self.mutex:
-            try:
-                if self.filename and os.path.exists(self.filename):
-                    try:
-                        os.chmod(self.filename, 0o600)
-                    except Exception:
-                        pass
-                    os.remove(self.filename)
-                    return True
-            except Exception as e:
-                logger.error(f"删除配置文件出错: {e}")
-            return False
+            logger.info(f"创建临时配置文件: {config_path}")
+            
+            # 返回字符串路径，因为 subprocess 等接口可能需要
+            return str(config_path)
+            
+        except (IOError, OSError) as e:
+            logger.error(f"无法创建临时配置文件 {config_path}: {e}", exc_info=True)
+            raise
 
     @staticmethod
     def cleanup_temp_dir():
-        """清理整个临时目录"""
-        try:
-            docs_dir = Path.home() / "Documents" / "MitaHillFRP"
-            temp_dir = docs_dir / ".temp"
-            if temp_dir.exists():
-                shutil.rmtree(temp_dir, ignore_errors=True)
-        except Exception as e:
-            logger.warning(f"清理临时目录失败: {e}")
+        """删除所有由此会话创建的临时文件"""
+        if not ConfigManager._created_files:
+            return
+            
+        logger.info(f"正在清理 {len(ConfigManager._created_files)} 个临时配置文件...")
+        for file_path in list(ConfigManager._created_files):
+            try:
+                if file_path.exists():
+                    file_path.unlink()
+                    logger.debug(f"已删除: {file_path}")
+                ConfigManager._created_files.remove(file_path)
+            except (IOError, OSError) as e:
+                logger.warning(f"删除临时文件 {file_path} 失败: {e}")
+
+# 示例用法 (非直接运行)
+if __name__ == '__main__':
+    try:
+        # 模拟创建
+        config_content = "[common]\nserver_addr = 127.0.0.1"
+        path1 = ConfigManager.create_temp_config(config_content, "user123")
+        path2 = ConfigManager.create_temp_config(config_content, "user456", ".toml")
+        
+        print(f"创建的文件: {path1}, {path2}")
+        
+    finally:
+        # 模拟程序退出时清理
+        ConfigManager.cleanup_temp_dir()
+        print("清理完成。")

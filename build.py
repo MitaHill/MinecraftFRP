@@ -25,6 +25,7 @@ if sys.platform == 'win32':
 
 from src_builder.arg_parser import parse_arguments
 from src_builder.v2_builder import V2Builder
+from src_builder.upload_to_server import deploy_server_backend
 
 
 def main():
@@ -33,26 +34,7 @@ def main():
 
     # [新增] 仅部署服务端模式检测
     if getattr(args, 'server_on', False) and not args.upload:
-        print("[模式] 仅部署服务端 (Server Deployment Only)")
-        from src_builder.config import BuildConfig
-        from src_builder.deployer import Deployer
-        
-        cfg = BuildConfig()
-        ssh_cfg = cfg.get_ssh_config()
-        if not ssh_cfg:
-            print("❌ 无法加载 SSH 配置")
-            sys.exit(1)
-            
-        ssh_user = args.ssh_user or ssh_cfg.get('user')
-        ssh_pass = args.ssh_pass or ssh_cfg.get('password')
-        
-        if not ssh_user or not ssh_pass:
-            print("❌ SSH 凭据缺失")
-            sys.exit(1)
-            
-        deployer = Deployer(ssh_cfg, ssh_user, ssh_pass)
-        success = deployer.deploy_server("server")
-        
+        success = deploy_server_backend(args.ssh_user, args.ssh_pass)
         sys.exit(0 if success else 1)
 
     # 构建前置操作：自动清空 build/ 缓存并进行版本号自增

@@ -327,10 +327,10 @@ def _launch_main_app(info: dict) -> tuple[bool, int]:
         install_path_str = info.get('install_path')
         if install_path_str:
             base_dir = Path(install_path_str)
-            # 尝试新结构
-            candidate1 = base_dir / 'MitaHill-FRP-APP' / 'MinecraftFRP.exe'
-            # 尝试旧结构
-            candidate2 = base_dir / 'MinecraftFRP.exe'
+            # 尝试新结构 (Flat structure)
+            candidate1 = base_dir / 'MinecraftFRP.exe'
+            # 尝试旧结构 (Compatible fallback)
+            candidate2 = base_dir / 'MitaHill-FRP-APP' / 'MinecraftFRP.exe'
             
             if candidate1.exists():
                 app_path = candidate1
@@ -338,8 +338,14 @@ def _launch_main_app(info: dict) -> tuple[bool, int]:
                 app_path = candidate2
                 
     if not app_path or not app_path.exists():
-        _safe_log(f"main app missing: {app_path}")
-        return False, -1
+        # Fallback: check relative to launcher itself
+        launcher_dir = Path(sys.executable).parent
+        candidate_local = launcher_dir / 'MinecraftFRP.exe'
+        if candidate_local.exists():
+             app_path = candidate_local
+        else:
+             _safe_log(f"main app missing: {app_path}")
+             return False, -1
 
     try:
         # 设置工作目录为可执行文件所在目录，避免路径问题

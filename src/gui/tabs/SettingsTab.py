@@ -35,15 +35,15 @@ class SettingsTab(QWidget):
         dark_mode_desc.setStyleSheet("color: gray; font-size: 12px; margin-left: 20px; margin-bottom: 10px;")
         layout.addWidget(dark_mode_desc)
 
-        # Server Management
-        server_mgmt_button = QPushButton("服务器管理配置")
-        server_mgmt_button.clicked.connect(self.open_server_management)
-        layout.addWidget(server_mgmt_button)
-        
-        server_mgmt_desc = QLabel("管理员专用功能：管理FRP服务器列表配置（需要管理员密码）")
-        server_mgmt_desc.setWordWrap(True)
-        server_mgmt_desc.setStyleSheet("color: gray; font-size: 12px; margin-left: 20px; margin-bottom: 10px;")
-        layout.addWidget(server_mgmt_desc)
+        # Server Management (Hidden)
+        # server_mgmt_button = QPushButton("服务器管理配置")
+        # server_mgmt_button.clicked.connect(self.open_server_management)
+        # layout.addWidget(server_mgmt_button)
+        # 
+        # server_mgmt_desc = QLabel("管理员专用功能：管理FRP服务器列表配置（需要管理员密码）")
+        # server_mgmt_desc.setWordWrap(True)
+        # server_mgmt_desc.setStyleSheet("color: gray; font-size: 12px; margin-left: 20px; margin-bottom: 10px;")
+        # layout.addWidget(server_mgmt_desc)
 
         layout.addStretch()
 

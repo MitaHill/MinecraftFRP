@@ -99,7 +99,7 @@ class V2Builder:
         
         launcher_script = Path("src_launcher/launcher.py")
         app_name = "Launcher"
-        icon_path = Path("src/assets/logo.ico")
+        icon_path = Path("base/logo.ico")
         build_path = self.build_dir / "launcher_build" # 独立的构建缓存
 
         if not launcher_script.exists():
@@ -211,10 +211,11 @@ class V2Builder:
             "--onedir",
             "--windowed",  # 无控制台
             f"--name={app_name}",
-            f"--key={key}",  # 字节码加密
+            # f"--key={key}",  # 字节码加密 - Removed as per PyInstaller v6.0+
             f"--workpath={work_path}",
             f"--distpath={dist_path}",
             "--clean",
+            f"--contents-directory=MinecraftFRP_internal",
             
             # 数据文件 (Windows separators ;)
             # base 目录 -> base
@@ -328,16 +329,18 @@ class V2Builder:
             shutil.copytree(self.launcher_dir, output_dir, dirs_exist_ok=True)
             print(f"✅ Copied Launcher directory contents")
             
-            # 2. 复制主应用目录
-            app_dest = output_dir / "MitaHill-FRP-APP"
-            shutil.copytree(self.main_app_dir, app_dest, dirs_exist_ok=True, ignore=shutil.ignore_patterns("logs"))
+            # 2. 复制主应用目录 (合并到根目录，而不是子目录)
+            # app_dest = output_dir / "MitaHill-FRP-APP"
+            # shutil.copytree(self.main_app_dir, app_dest, dirs_exist_ok=True, ignore=shutil.ignore_patterns("logs"))
+            print(f"📋 Copying main app from {self.main_app_dir} to {output_dir}")
+            shutil.copytree(self.main_app_dir, output_dir, dirs_exist_ok=True, ignore=shutil.ignore_patterns("logs"))
             
             # 统计文件
-            file_count = sum(1 for _ in app_dest.rglob('*') if _.is_file())
-            print(f"✅ Copied MitaHill-FRP-APP ({file_count} files)")
+            file_count = sum(1 for _ in output_dir.rglob('*') if _.is_file())
+            print(f"✅ Merged MitaHill-FRP-APP ({file_count} files total)")
             
             # 3. 验证关键文件
-            main_exe = app_dest / "MinecraftFRP.exe"
+            main_exe = output_dir / "MinecraftFRP.exe"
             if not main_exe.exists():
                 print(f"❌ ERROR: MinecraftFRP.exe not found!")
                 return False
@@ -350,7 +353,7 @@ class V2Builder:
             print(f"\n✅ Build output organized:")
             print(f"   Location: {output_dir}")
             print(f"   - Launcher.exe")
-            print(f"   - MitaHill-FRP-APP/ ({file_count} files)")
+            print(f"   - MinecraftFRP.exe")
             
             return True
             
@@ -397,10 +400,12 @@ class V2Builder:
         # 使用 Inno Setup 编译，传入动态路径定义
         defines = {
             "BuildOutput": str(build_output_dir.resolve()),
-            "AppDist": str((build_output_dir / "MitaHill-FRP-APP").resolve()),
+            # AppDist 指向 build_output_dir，因为文件已经合并
+            "AppDist": str(build_output_dir.resolve()),
             "MyAppVersion": self.config.get_version_string(),
             "Channel": getattr(self.args, "channel", "dev"),
         }
+
         # 将 Inno 输出放在 build/installer_output
         installer_out_dir = self.build_dir / "installer_output"
         installer_out_dir.mkdir(parents=True, exist_ok=True)

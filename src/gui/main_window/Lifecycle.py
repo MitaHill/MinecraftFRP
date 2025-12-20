@@ -1,5 +1,6 @@
 from PySide6.QtCore import QMutexLocker
 from PySide6.QtWidgets import QApplication
+from src.core.ConfigManager import ConfigManager
 
 def handle_close_event(window, event):
     """处理窗口关闭事件，确保资源被安全释放"""
@@ -11,8 +12,13 @@ def handle_close_event(window, event):
     # 停止所有正在运行的线程
     stop_all_threads(window)
 
-    # 清理配置文件
-    window.config_manager.delete_config()
+    # 清理特定配置文件（如果存在）
+    if hasattr(window, '_current_config_path') and window._current_config_path:
+        # ConfigManager is a static class, call method directly on it.
+        ConfigManager.delete_config(window._current_config_path)
+    
+    # 清理所有ConfigManager追踪的临时文件 (old behavior, just in case)
+    ConfigManager.cleanup_temp_dir()
     
     # 退出应用程序
     QApplication.quit()

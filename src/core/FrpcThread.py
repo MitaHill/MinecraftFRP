@@ -29,6 +29,7 @@ class FrpcThread(QThread):
             return
             
         try:
+            # 仅当 ini_path 是字符串且存在时才尝试删除
             if isinstance(self.ini_path, (str, os.PathLike)) and os.path.exists(self.ini_path):
                 # 尝试安全删除
                 try:

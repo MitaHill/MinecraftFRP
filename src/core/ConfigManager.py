@@ -65,6 +65,32 @@ class ConfigManager:
             except (IOError, OSError) as e:
                 logger.warning(f"删除临时文件 {file_path} 失败: {e}")
 
+    @staticmethod
+    def create_config(content: str, map_id: str, suffix: str = ".ini") -> Path:
+        """
+        Creates a temporary configuration file for a specific mapping.
+        Returns the Path object of the created file.
+        This is essentially a wrapper around create_temp_config but returns Path.
+        """
+        config_path_str = ConfigManager.create_temp_config(content, map_id, suffix)
+        return Path(config_path_str)
+
+    @staticmethod
+    def delete_config(config_path: Path):
+        """
+        Deletes a specific temporary configuration file.
+        This is a more granular delete than cleanup_temp_dir.
+        """
+        try:
+            if config_path.exists():
+                config_path.unlink()
+                logger.info(f"已删除特定临时配置文件: {config_path}")
+            # Also remove from the _created_files set if it was tracked
+            if config_path in ConfigManager._created_files:
+                ConfigManager._created_files.remove(config_path)
+        except (IOError, OSError) as e:
+            logger.warning(f"删除特定临时文件 {config_path} 失败: {e}")
+
 # 示例用法 (非直接运行)
 if __name__ == '__main__':
     try:

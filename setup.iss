@@ -90,12 +90,11 @@ Source: "{#BuildOutput}\\nuitka_launcher\\*"; DestDir: "{app}\\nuitka_launcher";
 #endif
 
 ; Launcher 依赖目录 (PyInstaller onedir 模式)
-#ifexist "{#BuildOutput}\\launcher_internal\\"
 Source: "{#BuildOutput}\\launcher_internal\\*"; DestDir: "{app}\\launcher_internal"; Flags: ignoreversion recursesubdirs createallsubdirs
-#endif
 
-; 主应用程序：将整个目录放到 MitaHill-FRP-APP
-Source: "{#AppDist}\*"; DestDir: "{app}\MitaHill-FRP-APP"; Flags: ignoreversion recursesubdirs createallsubdirs
+; 主应用程序：MinecraftFRP.exe 和 MinecraftFRP_internal
+Source: "{#BuildOutput}\MinecraftFRP.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#BuildOutput}\MinecraftFRP_internal\*"; DestDir: "{app}\MinecraftFRP_internal"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 ; FRP工具和基础文件 (包含 mp3, exe, ico 等所有文件)
 ; 使用递归子目录模式，将 base 目录下的所有内容复制到安装目录的 base 子目录中
@@ -112,7 +111,7 @@ Name: "{userdocs}\MitaHillFRP\logs"; Permissions: users-modify
 [InstallDelete]
 ; 清理旧版本的日志目录，避免混淆
 Type: filesandordirs; Name: "{app}\logs"
-Type: filesandordirs; Name: "{app}\MitaHill-FRP-APP\logs"
+Type: filesandordirs; Name: "{app}\MitaHill-FRP-APP"
 Type: filesandordirs; Name: "{app}\app\logs"
 
 [Icons]
@@ -174,8 +173,8 @@ begin
     LauncherPath := ExpandConstant('{app}') + '\launcher.exe';
     StringChange(LauncherPath, '\', '/');
     
-    // 主程序路径变更为 MitaHill-FRP-APP/MinecraftFRP.exe
-    AppExePath := ExpandConstant('{app}') + '\MitaHill-FRP-APP\MinecraftFRP.exe';
+    // 主程序路径变更为 MinecraftFRP.exe
+    AppExePath := ExpandConstant('{app}') + '\MinecraftFRP.exe';
     StringChange(AppExePath, '\', '/');
     
     InstallInfo := '{' + #13#10 +

@@ -12,6 +12,38 @@ from src.gui.styles import STYLE
 from src.network.HeartbeatManager import HeartbeatManager
 from src.network.TunnelMonitor import TunnelMonitor
 
+def _generate_frpc_config_content(is_special: bool, host: str, port: int, token: str, local_port: str, remote_port: int, map_id: int) -> str:
+    """Generates the FRPC configuration content string."""
+    if is_special:
+        # TOML format for new-frpc.exe (special nodes)
+        # Note: The original code passed an empty token for special nodes.
+        content = f"""# frpc.toml content
+serverAddr = "{host}"
+serverPort = {port}
+
+[[proxies]]
+name = "proxy_{map_id}"
+type = "tcp"
+localIP = "127.0.0.1"
+localPort = {local_port}
+remotePort = {remote_port}
+"""
+    else:
+        # INI format for frpc.exe (normal nodes)
+        content = f"""[common]
+server_addr = {host}
+server_port = {port}
+token = {token}
+
+[proxy_{map_id}]
+type = tcp
+local_ip = 127.0.0.1
+local_port = {local_port}
+remote_port = {remote_port}
+"""
+    return content
+
+
 def set_port(window, port):
     """当检测到端口时，设置端口并触发自动映射"""
     window.mapping_tab.port_edit.setText(port)
@@ -78,26 +110,42 @@ def start_map(window):
             pass
 
         server_name, host, port, token = get_server_details(window)
+        local_port = window.mapping_tab.port_edit.text().strip()
         remote_port = gen_port()
+        map_id = random.randint(10000, 99999) # Generate map_id once
         
         # 判断是否为特殊节点（名称包含“特殊节点”）
         is_special = "特殊节点" in server_name
-        if is_special:
-            # 使用 TOML 与 new-frpc.exe
-            cfg = ConfigManager("frpc.toml")
-            ok = cfg.create_config(host, port, "", window.mapping_tab.port_edit.text().strip(), remote_port, random.randint(10000, 99999))
-            config_path = str(cfg.filename)
-            window.current_server_is_special = True
-            window._current_cfg_manager = cfg
-        else:
-            ok = window.config_manager.create_config(host, port, token, window.mapping_tab.port_edit.text().strip(), remote_port, random.randint(10000, 99999))
-            config_path = str(window.config_manager.filename)
-            window.current_server_is_special = False
-            window._current_cfg_manager = window.config_manager
         
-        if not ok:
-            QMessageBox.warning(window, "错误", "无法写入配置文件，请检查权限")
-            return
+        config_path = None
+        config_path_obj = None # Will store the Path object if a file is created
+
+        if is_special:
+            # Use TOML with new-frpc.exe for special nodes
+            frpc_content = _generate_frpc_config_content(True, host, port, token, local_port, remote_port, map_id)
+            config_path_obj = ConfigManager.create_config(frpc_content, str(map_id), ".toml")
+            if config_path_obj is None: # check if creation failed
+                QMessageBox.warning(window, "错误", "无法写入配置文件，请检查权限")
+                return
+            config_path = str(config_path_obj)
+            
+            window.current_server_is_special = True
+            window._current_cfg_manager = ConfigManager
+        else:
+            # Use command line arguments with frpc.exe for normal nodes
+            # frpc.exe tcp -s host:port -t token -l local_port -r remote_port -n name
+            proxy_name = f"proxy_{map_id}"
+            config_path = [
+                "tcp",
+                "-s", f"{host}:{port}",
+                "-t", token,
+                "-l", local_port,
+                "-r", str(remote_port),
+                "-n", proxy_name
+            ]
+            
+            window.current_server_is_special = False
+            window._current_cfg_manager = ConfigManager # Still set for consistency, though not used for cleanup here
 
         # 保存上下文供心跳使用
         window._current_mapping = {
@@ -105,11 +153,12 @@ def start_map(window):
             "host": host,
             "remote_port": remote_port
         }
+        window._current_config_path = config_path_obj # Store Path object (or None) for later deletion
 
         window.link = f"{host}:{remote_port}"
         start_frpc_thread(window, config_path)
-        window.log(f"开始映射本地端口 {window.mapping_tab.port_edit.text().strip()} 到 {window.link}", "blue")
-        
+        window.log(f"开始映射本地端口 {local_port} 到 {window.link}", "blue")
+
         # 彩蛋检查 (6月4日) - 仅限预览版 (已在 MainWindow 初始化时过滤)
         if hasattr(window, 'easter_eggs') and window.easter_eggs:
             window.easter_eggs.check_64_log()

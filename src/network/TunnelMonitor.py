@@ -23,6 +23,12 @@ class TunnelMonitor(QThread):
     def run(self):
         logger.info(f"TunnelMonitor started for {self.server_addr}:{self.remote_port}")
         
+        # Add initial delay to ensure tunnel is fully stable
+        # Allow 5 seconds for FRPC to register and server to propagate
+        for _ in range(5):
+            if not self.is_running: return
+            time.sleep(1)
+        
         while self.is_running:
             try:
                 # 1. Prepare Data

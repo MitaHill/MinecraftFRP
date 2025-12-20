@@ -14,28 +14,42 @@ class ProcessManager:
     def __init__(self):
         self.process = None
 
-    def run_frpc(self, ini_path: str) -> Generator[str, None, None]:
+    def run_frpc(self, config_or_args) -> Generator[str, None, None]:
         """
         启动 frpc 进程并生成输出行。
         
         Args:
-            ini_path: 配置文件路径（.ini 使用 frpc.exe，.toml 使用 new-frpc.exe）
+            config_or_args: 
+                - 配置文件路径字符串 (.toml 使用 new-frpc.exe)
+                - 或者 命令行参数列表 (使用 frpc.exe)
         
         Yields:
             进程的 stdout 输出行。
-            
-        Raises:
-            FileNotFoundError: 如果对应的 frpc 可执行文件未找到。
-            RuntimeError: 如果进程启动失败或返回非零退出码。
         """
-        exe_name = "new-frpc.exe" if ini_path.endswith(".toml") else "frpc.exe"
+        exe_name = "frpc.exe"
+        command_args = []
+
+        if isinstance(config_or_args, list):
+            # 命令行参数模式 (普通节点)
+            exe_name = "frpc.exe"
+            command_args = [str(arg) for arg in config_or_args]
+        elif isinstance(config_or_args, str):
+            # 配置文件模式 (特殊节点 或 旧兼容)
+            if config_or_args.endswith(".toml"):
+                exe_name = "new-frpc.exe"
+            else:
+                exe_name = "frpc.exe"
+            command_args = ["-c", config_or_args]
+        else:
+             raise ValueError("run_frpc expects a list or a string")
+
         frpc_exe_path = get_resource_path(f"base/{exe_name}")
 
         if not os.path.exists(frpc_exe_path):
             raise FileNotFoundError(f"{exe_name} 未找到: {frpc_exe_path}")
 
-        # 构建命令行参数，确保所有路径都是字符串
-        command = [str(frpc_exe_path), "-c", str(ini_path)]
+        # 构建完整命令行
+        command = [str(frpc_exe_path)] + command_args
         
         logger.info(f"正在启动 frpc 进程: {' '.join(command)}")
 
@@ -87,7 +101,7 @@ class ProcessManager:
             logger.info("正在终止 frpc 进程...")
             try:
                 self.process.terminate()
-                self.process.wait(timeout=5) # 等待5秒
+                self.process.wait(timeout=2) # 等待2秒
             except subprocess.TimeoutExpired:
                 logger.warning("终止 frpc 进程超时，强制结束。")
                 self.process.kill()
@@ -96,3 +110,7 @@ class ProcessManager:
             finally:
                 self.process = None
                 logger.info("frpc 进程已终止。")
+
+    def stop(self):
+        """停止进程 (terminate_process 的别名，供外部调用)"""
+        self.terminate_process()

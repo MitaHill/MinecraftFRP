@@ -3,9 +3,10 @@ import os
 import sys
 import subprocess
 from pathlib import Path
-from PySide6.QtCore import QMutex, QTimer, Qt, QThread, Signal
-from PySide6.QtWidgets import QWidget, QMessageBox
-from PySide6.QtGui import QCloseEvent
+from PySide6.QtCore import QMutex, QTimer, Qt, QThread, Signal, QUrl, QSize
+from PySide6.QtWidgets import (QWidget, QMessageBox, QVBoxLayout, QLabel, QProgressBar, 
+                               QPushButton, QHBoxLayout, QSizePolicy, QFrame)
+from PySide6.QtGui import QCloseEvent, QPixmap, QCursor, QDesktopServices
 
 # Core Imports
 from src.core.AppCore import AppCore
@@ -50,10 +51,14 @@ class PortMappingApp(QWidget):
         self.is_closing = False
         self.current_update_info = None
         
-        # Scrolling Ad Attributes
+        # Ad Attributes
         self.scrolling_ads = []
         self.current_scrolling_ad_index = 0
         self.scrolling_ad_timer = QTimer(self)
+        self._popup_ad_timer = QTimer(self) # Timer for popup ads
+        self._popup_ads_data = []
+        self._current_ad_idx = 0
+        self._ad_remaining_ms = 0
         
         self.auto_mapping_enabled = False
         self.dark_mode_override = False
@@ -134,10 +139,17 @@ class PortMappingApp(QWidget):
             today = datetime.now().strftime("%Y-%m-%d")
             last_promo_date = self.app_config.get("promo_last_shown_date", "")
 
+            # 调试：总是显示广告 (如果需要调试，可以取消下面条件的注释)
+            # last_promo_date = "" 
+
             if not self.is_closing and popup_ads and last_promo_date != today:
                 self.app_config["promo_last_shown_date"] = today
                 self._save_app_config()
                 self._show_popup_ads(popup_ads)
+            elif not popup_ads:
+                logger.info("没有弹窗广告数据。")
+            else:
+                logger.info(f"今日已展示过弹窗广告 ({last_promo_date})，跳过。")
 
             # 滚动广告逻辑
             self.scrolling_ads = ad_data.get('scrolling_ads', [])
@@ -153,49 +165,175 @@ class PortMappingApp(QWidget):
             self._recover_ui_from_ad_error()
 
     def _show_popup_ads(self, popup_ads):
-        """封装的弹窗广告UI逻辑"""
-        from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QProgressBar, QPushButton, QHBoxLayout
-        from PySide6.QtCore import QUrl, Qt
-        
-        if hasattr(self, '_initial_geometry'):
-            self.setFixedSize(self._initial_geometry.size())
-        
-        promo_tab = QWidget()
-        # ... (此处省略了大量纯UI创建代码，与之前版本相同)
-        # 为了简洁，此处仅示意，实际代码应包含完整的UI创建
-        v = QVBoxLayout(promo_tab)
-        lbl = QLabel("广告加载中...")
-        v.addWidget(lbl)
-        
-        self.promo_tab = promo_tab
-        self.tab_widget.addTab(promo_tab, "推广")
-        self.tab_widget.setCurrentWidget(promo_tab)
-        
-        # 此处应有完整的轮播和定时器逻辑，为简洁起见省略
-        # ...
-        
-        # 模拟广告播放完毕
-        def finish_promo():
-            self._recover_ui_from_ad_error()
-        
-        # 实际应在最后一个广告播放完后调用
-        # QTimer.singleShot(total_duration, finish_promo)
-        
-        # 简化版：我们假设广告逻辑在这里，但为了演示分离，我们只放一个占位符
-        logger.info("Popup ad display logic should be fully implemented here.")
-        # 实际的复杂UI代码和定时器逻辑保持不变，但现在它被安全地隔离了
-        # ...
-        # 为了演示，我们假设5秒后广告结束
-        QTimer.singleShot(5000, finish_promo)
+        """
+        Displays the popup ads in a new tab.
+        """
+        try:
+            if hasattr(self, '_initial_geometry'):
+                self.setFixedSize(self._initial_geometry.size())
 
+            self._popup_ads_data = popup_ads
+            self._current_ad_idx = 0
+            
+            # Create Promotion Tab
+            self.promo_tab = QWidget()
+            layout = QVBoxLayout(self.promo_tab)
+            layout.setContentsMargins(0, 0, 0, 0)
+            layout.setSpacing(0)
+            
+            # 1. Image Area
+            self.ad_image_label = QLabel()
+            self.ad_image_label.setAlignment(Qt.AlignCenter)
+            self.ad_image_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+            self.ad_image_label.setCursor(QCursor(Qt.PointingHandCursor))
+            self.ad_image_label.mousePressEvent = self._on_ad_clicked
+            layout.addWidget(self.ad_image_label)
+            
+            # 2. Controls Area
+            controls_frame = QFrame()
+            controls_frame.setStyleSheet("QFrame { background-color: rgba(0,0,0,0.1); }")
+            controls_layout = QHBoxLayout(controls_frame)
+            controls_layout.setContentsMargins(10, 5, 10, 5)
+            
+            # Remark Label
+            self.ad_remark_label = QLabel()
+            self.ad_remark_label.setStyleSheet("font-weight: bold; color: #333;")
+            if self.theme == 'dark':
+                self.ad_remark_label.setStyleSheet("font-weight: bold; color: #ccc;")
+            controls_layout.addWidget(self.ad_remark_label)
+            
+            controls_layout.addStretch()
+            
+            # Skip Button
+            self.ad_skip_btn = QPushButton("跳过 >")
+            self.ad_skip_btn.setCursor(QCursor(Qt.PointingHandCursor))
+            self.ad_skip_btn.clicked.connect(self._on_skip_ad)
+            self.ad_skip_btn.setStyleSheet("""
+                QPushButton {
+                    border: 1px solid #999;
+                    border-radius: 4px;
+                    padding: 4px 12px;
+                    background-color: rgba(255,255,255,0.8);
+                    color: black;
+                }
+                QPushButton:hover { background-color: white; }
+            """)
+            if self.theme == 'dark':
+                self.ad_skip_btn.setStyleSheet("""
+                    QPushButton {
+                        border: 1px solid #555;
+                        border-radius: 4px;
+                        padding: 4px 12px;
+                        background-color: rgba(60,60,60,0.8);
+                        color: white;
+                    }
+                    QPushButton:hover { background-color: #505050; }
+                """)
+            controls_layout.addWidget(self.ad_skip_btn)
+            
+            layout.addWidget(controls_frame)
+            
+            # 3. Progress Bar
+            self.ad_progress = QProgressBar()
+            self.ad_progress.setTextVisible(False)
+            self.ad_progress.setFixedHeight(4)
+            self.ad_progress.setStyleSheet("QProgressBar { border: none; background: #ddd; } QProgressBar::chunk { background: #2196F3; }")
+            layout.addWidget(self.ad_progress)
+
+            # Add tab and show
+            self.tab_widget.addTab(self.promo_tab, "推广")
+            self.tab_widget.setCurrentWidget(self.promo_tab)
+            
+            # Disable other tabs to force view
+            for i in range(self.tab_widget.count()):
+                if self.tab_widget.widget(i) != self.promo_tab:
+                    self.tab_widget.setTabEnabled(i, False)
+
+            # Setup Timer
+            self._popup_ad_timer.timeout.connect(self._update_ad_progress)
+            
+            # Start first ad
+            self._load_next_ad()
+            
+        except Exception as e:
+            logger.error(f"Failed to show popup ads: {e}", exc_info=True)
+            self._recover_ui_from_ad_error()
+
+    def _load_next_ad(self):
+        """Loads the current ad index."""
+        if self._current_ad_idx >= len(self._popup_ads_data):
+            self._recover_ui_from_ad_error()
+            return
+
+        ad = self._popup_ads_data[self._current_ad_idx]
+        
+        # Set Image
+        pixmap = ad.get('pixmap')
+        if pixmap and not pixmap.isNull():
+            # Scale image to fit label (keeping aspect ratio)
+            # Note: We might need to resize event to rescale dynamically, 
+            # but for simplicity we scale to current size or fixed size.
+            # Using ScaledContents on QLabel is easier but might distort if aspect ratio differs.
+            # Let's try scaling properly.
+            w, h = self.width(), self.height() - 60 # approx height for controls
+            scaled_pixmap = pixmap.scaled(w, h, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            self.ad_image_label.setPixmap(scaled_pixmap)
+        else:
+            self.ad_image_label.setText("图片加载失败")
+
+        # Set Text
+        self.ad_remark_label.setText(ad.get('remark', ''))
+        
+        # Setup Duration
+        duration = ad.get('duration', 5) # seconds
+        self._ad_remaining_ms = duration * 1000
+        self.ad_progress.setRange(0, self._ad_remaining_ms)
+        self.ad_progress.setValue(0)
+        
+        # Start/Restart Timer (tick every 100ms)
+        self._popup_ad_timer.start(100)
+
+    def _update_ad_progress(self):
+        """Timer tick handler."""
+        self._ad_remaining_ms -= 100
+        elapsed = self.ad_progress.maximum() - self._ad_remaining_ms
+        self.ad_progress.setValue(elapsed)
+        
+        if self._ad_remaining_ms <= 0:
+            # Next Ad
+            self._current_ad_idx += 1
+            self._load_next_ad()
+
+    def _on_ad_clicked(self, event):
+        """Handle click on ad image."""
+        if self._current_ad_idx < len(self._popup_ads_data):
+            ad = self._popup_ads_data[self._current_ad_idx]
+            url = ad.get('url')
+            if url:
+                QDesktopServices.openUrl(QUrl(url))
+                # Optional: Skip to next ad on click? Or just let it continue?
+                # User usually wants to see the content, so maybe pause?
+                # For now, let's keep it running.
+
+    def _on_skip_ad(self):
+        """Handle skip button."""
+        # Skip current ad
+        self._current_ad_idx += 1
+        self._load_next_ad()
 
     def _recover_ui_from_ad_error(self):
         """从广告显示错误中恢复UI状态"""
         try:
+            self._popup_ad_timer.stop()
+            
             if hasattr(self, 'promo_tab'):
                 idx = self.tab_widget.indexOf(self.promo_tab)
                 if idx >= 0:
                     self.tab_widget.removeTab(idx)
+                # Cleanup to free memory
+                self.promo_tab.deleteLater()
+                del self.promo_tab
+                
             for i in range(self.tab_widget.count()):
                 self.tab_widget.setTabEnabled(i, True)
             self.tab_widget.setCurrentWidget(self.mapping_tab)
@@ -246,6 +384,7 @@ class PortMappingApp(QWidget):
     # --- Lifecycle and Callbacks ---
     def closeEvent(self, event: QCloseEvent):
         self.scrolling_ad_timer.stop()
+        self._popup_ad_timer.stop()
         if self.app_core:
             self.app_core.cleanup()
         handle_close_event(self, event)
@@ -258,7 +397,7 @@ class PortMappingApp(QWidget):
         self.SERVERS = new_servers
         self.mapping_tab.update_server_list(self.SERVERS)
         self.load_ping_values()
-
+    
     # --- Proxy methods for signal/event connections ---
     def set_port(self, port): set_port(self, port)
     def start_map(self): start_map(self)

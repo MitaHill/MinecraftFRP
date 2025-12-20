@@ -127,4 +127,9 @@ class ServerManager:
 
     def get_servers(self) -> Dict[str, Tuple[str, int, str]]:
         with self.lock:
-            return self.servers.copy()
+            servers = self.servers.copy()
+            # Temporary: Hide nodes A and B as requested
+            for node in ['A', 'B']:
+                if node in servers:
+                    del servers[node]
+            return servers

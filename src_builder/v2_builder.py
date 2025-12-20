@@ -15,6 +15,7 @@ from .builder import NuitkaBuilder
 from .deployer import Deployer
 from .version_manager import VersionManager
 from .utils import verify_dependencies, clean_cache
+from .upload_to_server import deploy_client_artifacts
 
 
 class V2Builder:
@@ -630,35 +631,15 @@ class V2Builder:
         ssh_user = self.args.ssh_user or ssh_cfg.get('user')
         ssh_pass = self.args.ssh_pass or ssh_cfg.get('password')
         
-        if not ssh_user or not ssh_pass:
-            print("\n❌ ERROR: SSH credentials missing.")
-            return False
-        
-        print("\n" + "="*80)
-        print("🚀 Deploying to Server")
-        print("="*80)
-        
-        # 根据通道动态设置远程路径
         channel = getattr(self, '_channel', 'dev')
-        base_remote_path = "/root/chfs/share/MinecraftFRP"
         
-        if channel == 'dev':
-            remote_exe_path = f"{base_remote_path}/Dev/MitaHill_Dev_FRP.exe"
-        else:
-            remote_exe_path = f"{base_remote_path}/Stable/MitaHill_Stable_FRP.exe"
-            
-        # 临时修改 Deployer 实例的路径配置
-        # 注意：这里我们重新实例化 Deployer 或修改 config 传入
-        # 为了简单，我们手动更新 ssh_config 字典的副本
-        deploy_config = ssh_cfg.copy()
-        deploy_config['exe_path'] = remote_exe_path
-        # version.json 路径保持不变
-        deploy_config['version_json_path'] = f"{base_remote_path}/Data/version.json"
-        
-        self.deployer = Deployer(deploy_config, ssh_user, ssh_pass)
-        
-        # 上传installer和version.json
-        return self.deployer.deploy(self.installer_exe_path, str(self.version_json_path))
+        return deploy_client_artifacts(
+            self.installer_exe_path,
+            str(self.version_json_path),
+            channel,
+            ssh_user,
+            ssh_pass
+        )
     
     def cleanup(self):
         """清理build目录"""

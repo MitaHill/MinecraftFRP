@@ -1,10 +1,9 @@
 """
-Script to upload/deploy files to the remote server.
-Can be used to deploy the server backend or client artifacts.
+Module to upload/deploy files to the remote server.
+Used by build.py and v2_builder.py to deploy server backend or client artifacts.
 """
 import sys
 import os
-import argparse
 from pathlib import Path
 
 # Add project root to path
@@ -70,43 +69,3 @@ def deploy_client_artifacts(local_exe, local_version_json, channel="dev", ssh_us
 
     deployer = Deployer(deploy_config, user, password)
     return deployer.deploy(local_exe, local_version_json)
-
-def main():
-    parser = argparse.ArgumentParser(description="MinecraftFRP Upload Tool")
-    
-    # Mode selection
-    mode_group = parser.add_mutually_exclusive_group(required=True)
-    mode_group.add_argument("--server", action="store_true", help="Deploy server backend code")
-    mode_group.add_argument("--client", action="store_true", help="Deploy client artifacts (requires --exe and --version-json)")
-    
-    # Auth overrides
-    parser.add_argument("--ssh-user", help="SSH Username (overrides config)")
-    parser.add_argument("--ssh-pass", help="SSH Password (overrides config)")
-    
-    # Client arguments
-    parser.add_argument("--exe", help="Path to local installer executable")
-    parser.add_argument("--version-json", help="Path to local version.json")
-    parser.add_argument("--channel", default="dev", choices=["dev", "stable"], help="Release channel (default: dev)")
-    
-    args = parser.parse_args()
-    
-    if args.server:
-        success = deploy_server_backend(args.ssh_user, args.ssh_pass)
-        sys.exit(0 if success else 1)
-        
-    elif args.client:
-        if not args.exe or not args.version_json:
-            print("❌ Error: --client mode requires --exe and --version-json")
-            sys.exit(1)
-            
-        success = deploy_client_artifacts(
-            args.exe, 
-            args.version_json, 
-            args.channel, 
-            args.ssh_user, 
-            args.ssh_pass
-        )
-        sys.exit(0 if success else 1)
-
-if __name__ == "__main__":
-    main()

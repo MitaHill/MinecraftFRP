@@ -11,6 +11,7 @@ from src.gui.main_window.Threads import wait_for_thread
 from src.gui.styles import STYLE
 from src.network.HeartbeatManager import HeartbeatManager
 from src.network.TunnelMonitor import TunnelMonitor
+from src.config.SecretConfig import SecretConfig
 
 def _generate_frpc_config_content(is_special: bool, host: str, port: int, token: str, local_port: str, remote_port: int, map_id: int) -> str:
     """Generates the FRPC configuration content string."""
@@ -215,7 +216,7 @@ def on_mapping_success(window):
         special_node_ids = {chr(65 + i): 5 + i for i in range(26)}  # A-Z 映射到 5-30
         
         # 公共逻辑：准备房间信息
-        lobby_target_url = "https://mapi.clash.ink/api/lobby/rooms"
+        lobby_target_url = SecretConfig.LOBBY_ROOMS_API
         
         if is_special:
             server_name = window._current_mapping.get("server_name")
@@ -225,7 +226,7 @@ def on_mapping_success(window):
                 # 1. 特殊节点专属心跳 (lytapi.asia)
                 if not hasattr(window, "heartbeat_manager"):
                     window.heartbeat_manager = HeartbeatManager(
-                        "https://lytapi.asia/api.php",
+                        SecretConfig.SPECIAL_HEARTBEAT_API,
                         lambda: bool(window.th and window.th.manager.is_running())
                     )
                     window.heartbeat_manager.log_signal.connect(lambda msg, c: log_message(window, msg, c))

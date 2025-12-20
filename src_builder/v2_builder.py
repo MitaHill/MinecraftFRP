@@ -89,6 +89,28 @@ class V2Builder:
         
         return True
     
+    def compile_secrets(self) -> bool:
+        """编译配置模块为 .pyd 并隐藏源码"""
+        print("\n" + "="*80)
+        print("🔒 Compiling Secrets (Cython)")
+        print("="*80)
+        
+        try:
+            # 1. Compile
+            subprocess.run([sys.executable, "compile_secrets.py"], check=True)
+            
+            # 2. Check if .pyd exists
+            pyd_files = list(Path("src/config").glob("*.pyd"))
+            if not pyd_files:
+                print("❌ Error: .pyd file not found after compilation")
+                return False
+            
+            print(f"✅ Generated: {[f.name for f in pyd_files]}")
+            return True
+        except subprocess.CalledProcessError:
+            print("❌ Error during compilation")
+            return False
+
     def build_launcher(self) -> bool:
         """构建启动器 (使用 PyInstaller)"""
         print("\n" + "="*80)
@@ -99,7 +121,7 @@ class V2Builder:
         
         launcher_script = Path("src_launcher/launcher.py")
         app_name = "Launcher"
-        icon_path = Path("base/logo.ico")
+        icon_path = Path("base/logo.ico").resolve() # Use absolute path
         build_path = self.build_dir / "launcher_build" # 独立的构建缓存
 
         if not launcher_script.exists():
@@ -177,6 +199,10 @@ class V2Builder:
         print("🔧 Building Main Application with PyInstaller (Secured)")
         print("="*80)
         
+        # 0. Compile Secrets
+        if not self.compile_secrets():
+            return False
+        
         start_time = time.time()
         current_version = self.config.get_version_string()
         
@@ -248,61 +274,75 @@ class V2Builder:
         log_cmd = [c if not c.startswith("--key=") else "--key=********" for c in cmd]
         print("   " + " ".join(log_cmd))
         
-        # 执行构建
-        import subprocess
-        print("\n▶️  Starting PyInstaller compilation...")
+        # Temporarily hide source file to force using .pyd
+        src_secret = Path("src/config/SecretConfig.py")
+        bak_secret = Path("src/config/SecretConfig.py.bak")
+        if src_secret.exists():
+            print("🔒 Hiding SecretConfig.py source...")
+            src_secret.rename(bak_secret)
+        
         try:
-            result = subprocess.run(cmd, check=True, text=True, capture_output=True, encoding='utf-8')
-            print("✅ PyInstaller completed successfully.")
-            # print(result.stdout) # Output might be too long, show only if needed or error
-        except subprocess.CalledProcessError as e:
-            print(f"❌ ERROR: PyInstaller failed with code {e.returncode}")
-            print("STDERR:", e.stderr)
-            return False
+            # 执行构建
+            import subprocess
+            print("\n▶️  Starting PyInstaller compilation...")
+            try:
+                result = subprocess.run(cmd, check=True, text=True, capture_output=True, encoding='utf-8')
+                print("✅ PyInstaller completed successfully.")
+                # print(result.stdout) # Output might be too long, show only if needed or error
+            except subprocess.CalledProcessError as e:
+                print(f"❌ ERROR: PyInstaller failed with code {e.returncode}")
+                print("STDERR:", e.stderr)
+                return False
+                
+            # 处理输出目录
+            # PyInstaller 输出在 dist_path / app_name
+            generated_dir = dist_path / app_name
             
-        # 处理输出目录
-        # PyInstaller 输出在 dist_path / app_name
-        generated_dir = dist_path / app_name
-        
-        if not generated_dir.exists():
-            print(f"❌ ERROR: Output directory not found: {generated_dir}")
-            return False
+            if not generated_dir.exists():
+                print(f"❌ ERROR: Output directory not found: {generated_dir}")
+                return False
+                
+            # 我们需要将其重命名/移动为 MitaHill-FRP-APP 并在 build/temp_main_app 下
+            # 为了兼容后续 create_app_package 的逻辑 (它寻找 self.main_app_dir)
             
-        # 我们需要将其重命名/移动为 MitaHill-FRP-APP 并在 build/temp_main_app 下
-        # 为了兼容后续 create_app_package 的逻辑 (它寻找 self.main_app_dir)
-        
-        target_parent = self.build_dir / "temp_main_app"
-        target_dir = target_parent / "MitaHill-FRP-APP"
-        
-        if target_parent.exists(): shutil.rmtree(target_parent)
-        target_parent.mkdir(parents=True, exist_ok=True)
-        
-        print(f"📋 Moving build artifact to {target_dir}...")
-        try:
-            shutil.move(str(generated_dir), str(target_dir))
-        except Exception as e:
-            print(f"❌ ERROR: Failed to move output directory: {e}")
-            return False
+            target_parent = self.build_dir / "temp_main_app"
+            target_dir = target_parent / "MitaHill-FRP-APP"
             
-        self.main_app_dir = target_dir
-        
-        # 验证
-        main_exe = self.main_app_dir / f"{app_name}.exe"
-        if not main_exe.exists():
-            print(f"❌ ERROR: Main executable not found: {main_exe}")
-            return False
+            if target_parent.exists(): shutil.rmtree(target_parent)
+            target_parent.mkdir(parents=True, exist_ok=True)
             
-        exe_size_mb = main_exe.stat().st_size / (1024 * 1024)
-        print(f"✅ Found {main_exe.name} ({exe_size_mb:.2f} MB)")
-        
-        # 统计文件
-        file_count = sum(1 for _ in self.main_app_dir.rglob('*') if _.is_file())
-        print(f"✅ MitaHill-FRP-APP contains {file_count} files")
-        
-        self.main_build_time = time.time() - start_time
-        print(f"✅ Main app built successfully in {self.main_build_time:.2f}s")
-        
-        return True
+            print(f"📋 Moving build artifact to {target_dir}...")
+            try:
+                shutil.move(str(generated_dir), str(target_dir))
+            except Exception as e:
+                print(f"❌ ERROR: Failed to move output directory: {e}")
+                return False
+                
+            self.main_app_dir = target_dir
+            
+            # 验证
+            main_exe = self.main_app_dir / f"{app_name}.exe"
+            if not main_exe.exists():
+                print(f"❌ ERROR: Main executable not found: {main_exe}")
+                return False
+                
+            exe_size_mb = main_exe.stat().st_size / (1024 * 1024)
+            print(f"✅ Found {main_exe.name} ({exe_size_mb:.2f} MB)")
+            
+            # 统计文件
+            file_count = sum(1 for _ in self.main_app_dir.rglob('*') if _.is_file())
+            print(f"✅ MitaHill-FRP-APP contains {file_count} files")
+            
+            self.main_build_time = time.time() - start_time
+            print(f"✅ Main app built successfully in {self.main_build_time:.2f}s")
+            
+            return True
+            
+        finally:
+            # Restore source file
+            if bak_secret.exists():
+                print("🔓 Restoring SecretConfig.py source...")
+                bak_secret.rename(src_secret)
     
     def create_app_package(self) -> bool:
         """组织构建产物到 Inno Setup 期望的目录结构"""

@@ -5,6 +5,7 @@ import urllib.request
 import urllib.parse
 from urllib.error import URLError, HTTPError
 from PySide6.QtCore import QObject, Signal
+from src.config.SecretConfig import SecretConfig
 
 class HeartbeatManager(QObject):
     """
@@ -34,7 +35,7 @@ class HeartbeatManager(QObject):
             if method == "GET":
                 req = urllib.request.Request(self.server_url)
             else:
-                headers = {'Content-Type': 'application/json', 'User-Agent': 'LMFP/1.3.1'}
+                headers = {'Content-Type': 'application/json', 'User-Agent': SecretConfig.USER_AGENT}
                 json_data = json.dumps(data, ensure_ascii=False).encode('utf-8')
                 req = urllib.request.Request(self.server_url, data=json_data, headers=headers, method=method)
 
@@ -57,7 +58,7 @@ class HeartbeatManager(QObject):
                 if method == "GET":
                     req = urllib.request.Request(self.server_url)
                 else:
-                    headers = {'Content-Type': 'application/json', 'User-Agent': 'LMFP/1.3.1'}
+                    headers = {'Content-Type': 'application/json', 'User-Agent': SecretConfig.USER_AGENT}
                     json_data = json.dumps(data, ensure_ascii=False).encode('utf-8')
                     req = urllib.request.Request(self.server_url, data=json_data, headers=headers, method=method)
                 

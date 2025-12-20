@@ -2,6 +2,7 @@ import time
 from PySide6.QtCore import QThread, Signal
 from src.utils.HttpManager import post_json
 from src.utils.LogManager import get_logger
+from src.config.SecretConfig import SecretConfig
 
 logger = get_logger()
 
@@ -18,7 +19,7 @@ class TunnelMonitor(QThread):
         self.server_addr = server_addr
         self.remote_port = remote_port
         self.is_running = True
-        self.api_url = "https://mapi.clash.ink/api/tunnel/validate"
+        self.api_url = SecretConfig.TUNNEL_VALIDATE_API
 
     def run(self):
         logger.info(f"TunnelMonitor started for {self.server_addr}:{self.remote_port}")

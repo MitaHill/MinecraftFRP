@@ -55,10 +55,12 @@ class ProcessManager:
 
         # 为 Windows 设置特定的启动标志，以隐藏控制台窗口
         startupinfo = None
-        if platform.system() == "windows":
+        creationflags = 0
+        if platform.system().lower() == "windows":
             startupinfo = subprocess.STARTUPINFO()
             startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
             startupinfo.wShowWindow = subprocess.SW_HIDE
+            creationflags = subprocess.CREATE_NO_WINDOW
 
         try:
             self.process = subprocess.Popen(
@@ -69,6 +71,7 @@ class ProcessManager:
                 encoding='utf-8',
                 errors='replace',
                 startupinfo=startupinfo,
+                creationflags=creationflags,
                 # bufsize=1, # 开启行缓冲
                 # universal_newlines=True # 在 text=True 时已隐含
             )

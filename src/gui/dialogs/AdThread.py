@@ -5,6 +5,7 @@ from PySide6.QtCore import QThread, Signal
 from PySide6.QtGui import QPixmap
 from src.utils.HttpManager import fetch_url_content
 from src.utils.LogManager import get_logger
+from src.config.SecretConfig import SecretConfig
 
 logger = get_logger()
 
@@ -15,8 +16,8 @@ class AdThread(QThread):
     """
     finished = Signal(dict)  # Signal emitting the entire parsed ad data dictionary
 
-    INDEX_URL = "https://z.clash.ink/chfs/shared/MinecraftFRP/Data/ads/ads_index.yaml"
-    IMAGE_BASE_URL = "https://z.clash.ink/chfs/shared/MinecraftFRP/Data/ads/photos/"
+    INDEX_URL = SecretConfig.AD_INDEX_URL
+    IMAGE_BASE_URL = SecretConfig.AD_IMAGE_BASE_URL
     CACHE_DIR = "config/ads"
     LOCAL_INDEX = "config/ads/ads_index.yaml"
 

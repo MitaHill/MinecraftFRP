@@ -6,6 +6,7 @@ from typing import Dict, Tuple, Optional
 from src.network.PingUtils import download_json, read_json_file
 from src.utils.Crypto import decrypt_data, load_servers_from_json
 from src.utils.LogManager import get_logger
+from src.config.SecretConfig import SecretConfig
 # get_resource_path 仅用于读取内置默认值（如有必要），此处主要使用文档路径
 
 logger = get_logger()
@@ -21,10 +22,7 @@ CONFIG_DIR = DOCS_DIR / "Config"
 
 class ServerManager:
     def __init__(self):
-        # 简单的密钥混淆
-        k_part1 = "clash"
-        k_part2 = "man"
-        self.key = k_part1 + k_part2
+        self.key = SecretConfig.ENCRYPTION_KEY
         self.lock = threading.Lock() # 线程锁
         
         # 确保配置目录存在
@@ -101,7 +99,7 @@ class ServerManager:
 
     def update_servers_from_network(self) -> Optional[Dict[str, Tuple[str, int, str]]]:
         """从网络下载并更新服务器列表，返回新的服务器字典"""
-        url = "https://z.clash.ink/chfs/shared/MinecraftFRP/Data/frp-server-list.json"
+        url = SecretConfig.SERVER_LIST_URL
         local_path = CONFIG_DIR / "frp-server-list.json"
 
         if not download_json(url, str(local_path)):

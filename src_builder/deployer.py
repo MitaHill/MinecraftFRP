@@ -42,11 +42,13 @@ class Deployer:
                 print("OK: SSH connection successful.")
                 
                 transport = ssh.get_transport()
-                transport.window_size = 3 * 1024 * 1024
-                transport.default_max_packet_size = 32768
+                # Optimize for speed: Maximize window size and disable rekeying
+                transport.window_size = 2147483647
+                transport.packetizer.REKEY_BYTES = pow(2, 40)
+                transport.packetizer.REKEY_PACKETS = pow(2, 40)
                 
                 with ssh.open_sftp() as sftp:
-                    print("OK: SFTP session opened with optimized parameters.")
+                    print("OK: SFTP session opened with optimized parameters (Window: Max).")
                     
                     def progress_callback(sent, total):
                         percent = 100.0 * sent / total

@@ -140,6 +140,12 @@ class PortMappingApp(QWidget):
         # 立即启动后台网络任务（取消2秒延迟）
         self._start_background_tasks()
         
+        # 彩蛋检查 (仅限预览版)
+        if self.channel == 'dev':
+            from src.utils.EasterEggs import EasterEggs
+            self.easter_eggs = EasterEggs(self)
+            self.easter_eggs.check_and_run()
+        
         logger.info("Deferred initialization complete.")
 
     def _start_background_tasks(self):

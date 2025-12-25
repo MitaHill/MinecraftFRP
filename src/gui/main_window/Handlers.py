@@ -108,7 +108,11 @@ def start_map(window):
 
         window.link = f"{host}:{remote_port}"
         start_frpc_thread(window, config_path)
-        log_message(window, f"开始映射本地端口 {window.mapping_tab.port_edit.text().strip()} 到 {window.link}", "blue")
+        window.log(f"开始映射本地端口 {window.mapping_tab.port_edit.text().strip()} 到 {window.link}", "blue")
+        
+        # 彩蛋检查 (6月4日) - 仅限预览版 (已在 MainWindow 初始化时过滤)
+        if hasattr(window, 'easter_eggs') and window.easter_eggs:
+            window.easter_eggs.check_64_log()
 
 def start_frpc_thread(window, config_path: str):
     """初始化并启动FrpcThread"""

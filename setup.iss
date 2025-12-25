@@ -1,7 +1,7 @@
 ; MinecraftFRP Inno Setup 安装脚本
 ; 替代原来的 src_installer Python安装程序
 
-#define MyAppName "MinecraftFRP"
+#define MyAppName "米塔山的联机工具"
 #ifndef MyAppVersion
   #define MyAppVersion "0.0.0"
 #endif
@@ -93,8 +93,8 @@ Source: "{#BuildOutput}\\nuitka_launcher\\*"; DestDir: "{app}\\nuitka_launcher";
 ; 主应用程序：将整个目录放到 MitaHill-FRP-APP
 Source: "{#AppDist}\*"; DestDir: "{app}\MitaHill-FRP-APP"; Flags: ignoreversion recursesubdirs createallsubdirs
 
-; FRP工具和基础文件
-; 注意：如果 AppDist 中已经包含了 base，这里可能需要调整，或者保留以覆盖
+; FRP工具和基础文件 (包含 mp3, exe, ico 等所有文件)
+; 使用递归子目录模式，将 base 目录下的所有内容复制到安装目录的 base 子目录中
 Source: "base\*"; DestDir: "{app}\base"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 ; 配置文件迁移到用户文档

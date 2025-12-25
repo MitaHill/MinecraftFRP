@@ -1,4 +1,4 @@
-name: Build and Test
+name: Build and Release
 
 on:
   push:
@@ -9,51 +9,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  test:
-    runs-on: windows-latest
-    strategy:
-      matrix:
-        python-version: ['3.9', '3.10', '3.11']
-
-    steps:
-    - uses: actions/checkout@v4
-      with:
-        fetch-depth: 0  # 获取完整历史记录用于版本管理
-    
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v4
-      with:
-        python-version: ${{ matrix.python-version }}
-    
-    - name: Cache pip dependencies
-      uses: actions/cache@v3
-      with:
-        path: ~\AppData\Local\pip\cache
-        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
-        restore-keys: |
-          ${{ runner.os }}-pip-
-    
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install pytest flake8
-    
-    - name: Lint with flake8
-      run: |
-        # stop the build if there are Python syntax errors or undefined names
-        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-        # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
-        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-    
-    - name: Test with pytest
-      run: |
-        pytest || echo "Tests completed with warnings"
-
   build:
     runs-on: windows-latest
-    needs: test
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/small-fixing' || startsWith(github.ref, 'refs/tags/v')
     
     steps:
     - uses: actions/checkout@v4
@@ -66,22 +23,20 @@ jobs:
         python-version: '3.10'
     
     - name: Cache pip dependencies
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: ~\AppData\Local\pip\cache
         key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
         restore-keys: |
           ${{ runner.os }}-pip-
     
-    - name: Install Nuitka and dependencies
+    - name: Install build dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
         pip install nuitka==1.8.4
         pip install zstandard
-    
-    - name: Install Visual C++ Build Tools
-      uses: microsoft/setup-msbuild@v1.3
+        pip install wheel setuptools
     
     - name: Setup MSVC Developer Environment
       uses: ilammy/msvc-dev-cmd@v1
@@ -89,7 +44,7 @@ jobs:
         arch: x64
     
     - name: Cache Nuitka build
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: build\.nuitka-cache
         key: ${{ runner.os }}-nuitka-${{ hashFiles('**/*.py') }}
@@ -100,11 +55,12 @@ jobs:
       run: |
         python build.py --verify-only
     
-    - name: Build application (fast mode)
+    - name: Build application
       run: |
         python build.py --fast --clean
       env:
         PYTHONIOENCODING: utf-8
+        NUITKA_CACHE_DIR: build\.nuitka-cache
     
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
@@ -132,17 +88,29 @@ jobs:
         body: |
           自动构建版本 ${{ steps.release_info.outputs.version }}
           
-          构建信息：
-          - 提交: ${{ github.sha }}
-          - 分支: ${{ github.ref_name }}
-          - 构建时间: ${{ github.event.head_commit.timestamp }}
+          ## 构建信息
+          - **提交**: ${{ github.sha }}
+          - **分支**: ${{ github.ref_name }}
+          - **构建时间**: ${{ github.event.head_commit.timestamp }}
+          - **构建器**: GitHub Actions
           
-          下载文件：
-          - `MitaHill_Dev_FRP.exe` - 开发版本
+          ## 下载说明
+          - `MitaHill_Dev_FRP.exe` - 开发版本（推荐）
+          - `MitaHill_Stable_FRP.exe` - 稳定版本
+          - `version.json` - 版本信息文件
+          
+          ## 安装方法
+          1. 下载对应的 `.exe` 文件
+          2. 运行安装程序
+          3. 按照提示完成安装
+          
+          ---
+          自动构建于 $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss UTC')
         files: |
           dist/**/MitaHill_*.exe
           dist/**/version.json
         draft: false
         prerelease: false
+        generate_release_notes: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

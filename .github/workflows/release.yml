@@ -1,0 +1,154 @@
+name: Release Build
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to build (e.g., 0.5.90)'
+        required: true
+        type: string
+      channel:
+        description: 'Release channel'
+        required: true
+        default: 'stable'
+        type: choice
+        options:
+        - stable
+        - dev
+
+jobs:
+  build-release:
+    runs-on: windows-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~\AppData\Local\pip\cache
+        key: ${{ runner.os }}-pip-release-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-release-
+          ${{ runner.os }}-pip-
+    
+    - name: Install build dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install nuitka==1.8.4
+        pip install zstandard
+    
+    - name: Setup MSVC Developer Environment
+      uses: ilammy/msvc-dev-cmd@v1
+      with:
+        arch: x64
+    
+    - name: Cache Nuitka build
+      uses: actions/cache@v3
+      with:
+        path: build\.nuitka-cache
+        key: ${{ runner.os }}-nuitka-release-${{ github.sha }}
+        restore-keys: |
+          ${{ runner.os }}-nuitka-
+    
+    - name: Prepare build environment
+      run: |
+        # 创建必要的目录
+        mkdir -p build dist
+        
+        # 验证所有依赖文件存在
+        python build.py --verify-only
+    
+    - name: Build release version
+      run: |
+        # 使用稳定构建模式（包含LTO优化）
+        python build.py --clean --channel ${{ inputs.channel || 'stable' }}
+      env:
+        PYTHONIOENCODING: utf-8
+    
+    - name: Package release artifacts
+      run: |
+        # 创建发布包
+        $releaseDir = "dist/MinecraftFRP_Release_$(Get-Date -Format 'yyyyMMdd-HHmmss')"
+        mkdir $releaseDir
+        
+        # 复制所有构建产物
+        Copy-Item -Path "dist/**/*.exe" -Destination $releaseDir -Recurse
+        Copy-Item -Path "dist/**/*.json" -Destination $releaseDir -Recurse
+        
+        # 创建压缩包
+        Compress-Archive -Path $releaseDir -DestinationPath "$releaseDir.zip" -Force
+        
+        # 输出文件列表
+        Get-ChildItem -Path $releaseDir -Recurse | Select-Object FullName, Length | Format-Table -AutoSize
+    
+    - name: Generate release notes
+      id: release_notes
+      run: |
+        $tag = if ("${{ github.ref_type }}" -eq "tag") { "${{ github.ref_name }}" } else { "v${{ inputs.version }}" }
+        $version = $tag -replace '^v', ''
+        
+        $notes = @"
+        # MinecraftFRP $version
+        
+        ## 构建信息
+        - **版本**: $version
+        - **通道**: ${{ inputs.channel || 'stable' }}
+        - **提交**: ${{ github.sha }}
+        - **构建时间**: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
+        - **构建器**: GitHub Actions
+        
+        ## 下载说明
+        - `MitaHill_Stable_FRP.exe` - 稳定版本（推荐）
+        - `MitaHill_Dev_FRP.exe` - 开发版本
+        - `version.json` - 版本信息文件
+        
+        ## 安装方法
+        1. 下载对应的 `.exe` 文件
+        2. 运行安装程序
+        3. 按照提示完成安装
+        
+        ---
+        自动构建于 $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss UTC')
+        "@
+        
+        $notes | Out-File -FilePath "RELEASE_NOTES.md" -Encoding UTF8
+        "release_notes_path=RELEASE_NOTES.md" >> $env:GITHUB_OUTPUT
+        "version=$version" >> $env:GITHUB_OUTPUT
+    
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        name: MinecraftFRP ${{ steps.release_notes.outputs.version }}
+        body_path: ${{ steps.release_notes.outputs.release_notes_path }}
+        files: |
+          dist/**/MitaHill_*.exe
+          dist/**/version.json
+          dist/MinecraftFRP_Release_*.zip
+        draft: false
+        prerelease: ${{ inputs.channel == 'dev' }}
+        generate_release_notes: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: release-${{ steps.release_notes.outputs.version }}
+        path: |
+          dist/**/*.exe
+          dist/**/*.json
+          dist/MinecraftFRP_Release_*.zip
+          RELEASE_NOTES.md
+        retention-days: 90

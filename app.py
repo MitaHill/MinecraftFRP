@@ -6,64 +6,105 @@ import os
 import traceback
 from pathlib import Path
 
-# 设置日志和崩溃报告路径 (用户文档目录)
-DOCS_DIR = Path.home() / "Documents" / "MitaHillFRP"
-LOGS_DIR = DOCS_DIR / "logs"
-CRASH_LOG = LOGS_DIR / "crash_log.txt"
+# 全局变量，由 setup_logging 初始化
+logger = None
+CRASH_LOG = None
 
-try:
-    LOGS_DIR.mkdir(parents=True, exist_ok=True)
-except:
-    pass
+def setup_logging():
+    """
+    配置日志记录，并提供备用方案。
+    尝试在 Documents/MitaHillFRP/logs 记录，如果失败，则回退到本地 'logs' 文件夹。
+    """
+    log_dir_primary = Path.home() / "Documents" / "MitaHillFRP" / "logs"
+    log_dir_fallback = Path.cwd() / "logs"
+    log_dir = None
 
-# 配置基础日志，确保在模块加载前就能记录
-logging.basicConfig(
-    filename=LOGS_DIR / "app_startup.log",
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    encoding='utf-8'
-)
-logger = logging.getLogger(__name__)
+    # 尝试主要日志目录
+    try:
+        log_dir_primary.mkdir(parents=True, exist_ok=True)
+        log_dir = log_dir_primary
+    except Exception as e1:
+        # 如果主要目录失败，尝试备用目录
+        try:
+            log_dir_fallback.mkdir(parents=True, exist_ok=True)
+            log_dir = log_dir_fallback
+        except Exception as e2:
+            # 如果两个都失败，日志记录将被禁用
+            sys.stderr.write(f"FATAL: Could not create log directory.\n")
+            sys.stderr.write(f"Primary error: {e1}\n")
+            sys.stderr.write(f"Fallback error: {e2}\n")
+            return None, None
+
+    startup_log_file = log_dir / "app_startup.log"
+    crash_log_file = log_dir / "crash_log.txt"
+
+    try:
+        logging.basicConfig(
+            filename=startup_log_file,
+            level=logging.INFO,
+            format='%(asctime)s - %(levelname)s - %(name)s - %(message)s',
+            encoding='utf-8',
+            force=True  # 如果已配置，则重新配置
+        )
+        _logger = logging.getLogger()
+        _logger.info("--- Application Starting ---")
+        _logger.info(f"Logging initialized successfully. Log directory: {log_dir}")
+        return _logger, crash_log_file
+    except Exception as e:
+        sys.stderr.write(f"FATAL: Failed to configure basicConfig: {e}\n")
+        return None, None
 
 def sigint_handler(sig_num, frame):
-    """Handles the interrupt signal."""
-    # 延迟导入
+    """处理中断信号。"""
+    if logger:
+        logger.info("SIGINT received, shutting down.")
     from src.gui.MainWindow import PortMappingApp
     if PortMappingApp.inst:
         PortMappingApp.inst.close()
     sys.exit(0)
 
 def cleanup():
-    """Application exit cleanup."""
+    """应用程序退出清理。"""
+    if logger:
+        logger.info("Application cleanup started.")
     try:
         from src.core.ConfigManager import ConfigManager
         ConfigManager.cleanup_temp_dir()
-    except Exception:
-        pass
+    except Exception as e:
+        if logger:
+            logger.error(f"Error during cleanup: {e}")
 
 def main():
-    """Main application entry point."""
+    """主应用程序入口点。"""
+    global logger, CRASH_LOG
+    logger, CRASH_LOG = setup_logging()
+
+    if not logger:
+        try:
+            import ctypes
+            ctypes.windll.user32.MessageBoxW(0, "无法初始化日志系统，程序无法启动。\n请检查权限或联系开发者。", "MinecraftFRP 致命错误", 16)
+        except:
+            pass
+        sys.exit(1)
+
     atexit.register(cleanup)
     
-    # 设置全局异常钩子
     def handle_exception(exc_type, exc_value, exc_traceback):
         if issubclass(exc_type, KeyboardInterrupt):
             sys.__excepthook__(exc_type, exc_value, exc_traceback)
             return
-        try:
-            logger.critical("Uncaught exception", exc_info=(exc_type, exc_value, exc_traceback))
-        except:
-            pass
-        # 写入崩溃日志
-        try:
-            with open(CRASH_LOG, "w", encoding="utf-8") as f:
-                f.write("Application Crash Report\n")
-                f.write("=========================\n")
-                traceback.print_exception(exc_type, exc_value, exc_traceback, file=f)
-        except:
-            pass
         
-        # 尝试弹窗提示 (如果 PySide6 已加载)
+        logger.critical("Uncaught exception", exc_info=(exc_type, exc_value, exc_traceback))
+        
+        if CRASH_LOG:
+            try:
+                with open(CRASH_LOG, "w", encoding="utf-8") as f:
+                    f.write("Application Crash Report\n")
+                    f.write("=========================\n")
+                    traceback.print_exception(exc_type, exc_value, exc_traceback, file=f)
+            except Exception as e:
+                logger.error(f"Failed to write crash log: {e}")
+        
         try:
             import ctypes
             ctypes.windll.user32.MessageBoxW(0, f"程序发生严重错误已崩溃。\n请查看日志: {CRASH_LOG}", "MinecraftFRP Crash", 16)
@@ -74,54 +115,81 @@ def main():
     signal.signal(signal.SIGINT, sigint_handler)
 
     try:
-        # 输出版本信息
-        # 延迟导入
+        logger.info("Importing version info...")
         from src.version import VERSION, GIT_HASH, get_version_string
         version_str = get_version_string()
         logger.info(f"Application started: {version_str}")
         logger.info(f"Version: {VERSION}, Git Hash: {GIT_HASH}")
         
-        # 如果是编译版本，提取updater到运行目录
+        # --- Environment Check ---
+        logger.info("Checking critical dependencies...")
+        try:
+            import yaml
+            logger.info(f"PyYAML detected: {yaml.__version__}")
+        except ImportError:
+            logger.critical("PyYAML not found!")
+            raise
+
+        try:
+            import Crypto
+            from Crypto.Cipher import AES
+            logger.info(f"PyCryptodome detected (Crypto package found).")
+        except ImportError:
+            logger.critical("PyCryptodome not found! Please install requirements.txt.")
+            raise
+        # -------------------------
+
+        logger.info("Initializing UpdaterManager...")
         from src.utils.UpdaterManager import UpdaterManager
         try:
             UpdaterManager.extract_updater()
             UpdaterManager.cleanup_old_updater()
+            logger.info("UpdaterManager tasks completed.")
         except Exception as e:
-            logger.warning(f"Updater提取失败（不影响正常使用）: {e}")
+            logger.warning(f"Updater extraction failed (non-critical): {e}")
 
-        # 延迟导入 PySide6，防止 DLL 加载失败导致静默退出
+        logger.info("Importing PySide6...")
         from PySide6.QtWidgets import QApplication, QMessageBox
         from PySide6.QtCore import QLockFile, QDir
-        from src.gui.MainWindow import PortMappingApp
+        logger.info("PySide6 imported successfully.")
 
+        logger.info("Creating QApplication...")
         app = QApplication(sys.argv)
+        logger.info("QApplication created.")
         
-        # --- 启动来源验证 ---
+        logger.info("Checking launch source...")
         if "--launched-by-launcher" not in sys.argv:
+            logger.warning("Application not launched by launcher.")
             QMessageBox.critical(None, "启动错误", 
                                  "请使用启动器 (Launcher.exe) 启动本程序！\n\n"
                                  "Please run Launcher.exe to start the application.")
             sys.exit(1)
         
-        # --- 单实例互斥锁 ---
+        logger.info("Checking for single instance...")
         lock_file = QLockFile(QDir.tempPath() + "/MinecraftFRP.lock")
-        lock_file.setStaleLockTime(0) # 如果之前崩溃，立即接管
+        lock_file.setStaleLockTime(0)
         if not lock_file.tryLock(100):
+            logger.warning("Another instance is already running.")
             QMessageBox.critical(None, "提示", "程序已经在运行中！\n请不要重复启动。")
             sys.exit(1)
-        # 将锁挂载到 app 上防止被垃圾回收
         app._lock_file = lock_file
+        logger.info("Single instance lock acquired.")
 
+        logger.info("Importing and creating MainWindow...")
+        from src.gui.MainWindow import PortMappingApp
         main_window = PortMappingApp({})
+        logger.info("MainWindow created.")
+        
         main_window.show()
+        logger.info("MainWindow shown. Starting event loop...")
         sys.exit(app.exec())
         
     except ImportError as e:
-        # 捕获导入错误 (如 PySide6 DLL 缺失)
         error_msg = f"Failed to import dependencies: {e}\nProbable cause: Missing VC++ Redistributable or corrupted installation."
-        logger.critical(error_msg)
-        with open(CRASH_LOG, "w", encoding="utf-8") as f:
-            f.write(error_msg)
+        logger.critical(error_msg, exc_info=True)
+        if CRASH_LOG:
+            with open(CRASH_LOG, "w", encoding="utf-8") as f:
+                f.write(error_msg)
         try:
             import ctypes
             ctypes.windll.user32.MessageBoxW(0, error_msg, "Startup Error", 16)
